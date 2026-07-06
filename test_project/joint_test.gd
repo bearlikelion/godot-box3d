@@ -1,6 +1,6 @@
 extends SceneTree
 
-var frames: int = 0
+var failures: int = 0
 var anchor: StaticBody3D
 var door: RigidBody3D
 var hinge: HingeJoint3D
@@ -36,17 +36,16 @@ func _initialize() -> void:
 	# Apply an angular impulse to swing the door.
 	door.apply_torque_impulse(Vector3(0, 0, 3.0))
 
+	for i in 60:
+		await physics_frame
 
-func _process(delta: float) -> bool:
-	frames += 1
-	if frames == 60:
-		print("Door position: ", door.global_position)
-		print("Door rotation Z (deg): ", rad_to_deg(door.rotation.z))
-		var dist_from_anchor: float = door.global_position.distance_to(Vector3(0, 0, 0))
-		print("Distance from anchor: ", dist_from_anchor)
-		if abs(door.rotation.z) > 0.05 and dist_from_anchor < 1.5:
-			print("RESULT: PASS - hinge joint constrained rotation around anchor")
-		else:
-			print("RESULT: FAIL - hinge joint did not behave as expected")
-		quit()
-	return false
+	print("Door position: ", door.global_position)
+	print("Door rotation Z (deg): ", rad_to_deg(door.rotation.z))
+	var dist_from_anchor: float = door.global_position.distance_to(Vector3(0, 0, 0))
+	print("Distance from anchor: ", dist_from_anchor)
+	if abs(door.rotation.z) > 0.05 and dist_from_anchor < 1.5:
+		print("RESULT: PASS - hinge joint constrained rotation around anchor")
+	else:
+		failures += 1
+		print("RESULT: FAIL - hinge joint did not behave as expected")
+	quit(1 if failures > 0 else 0)

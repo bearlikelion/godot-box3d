@@ -1,6 +1,6 @@
 extends SceneTree
 
-var frames: int = 0
+var failures: int = 0
 var body: RigidBody3D
 var ground: StaticBody3D
 
@@ -27,15 +27,18 @@ func _initialize() -> void:
 
 	print("Initial body Y: ", body.position.y)
 
+	call_deferred("_run")
 
-func _process(delta: float) -> bool:
-	frames += 1
-	if frames == 120:
-		print("Body Y after 120 physics frames: ", body.global_position.y)
-		print("Body linear velocity: ", body.linear_velocity)
-		if body.global_position.y < 4.0 and body.global_position.y > -5.0:
-			print("RESULT: PASS - body fell under gravity and did not tunnel through ground")
-		else:
-			print("RESULT: FAIL - body did not fall as expected")
-		quit()
-	return false
+
+func _run() -> void:
+	for i in 120:
+		await physics_frame
+
+	print("Body Y after 120 physics frames: ", body.global_position.y)
+	print("Body linear velocity: ", body.linear_velocity)
+	if body.global_position.y < 4.0 and body.global_position.y > -5.0:
+		print("RESULT: PASS - body fell under gravity and did not tunnel through ground")
+	else:
+		failures += 1
+		print("RESULT: FAIL - body did not fall as expected")
+	quit(1 if failures > 0 else 0)

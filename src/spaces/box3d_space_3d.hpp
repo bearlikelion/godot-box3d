@@ -93,6 +93,8 @@ private:
 
 	void _apply_area_overrides(const Vector3& p_default_gravity);
 
+	void _queue_state_sync(Box3DBodyImpl3D* p_body);
+
 	void _pull_body_events();
 
 	void _pull_sensor_events();

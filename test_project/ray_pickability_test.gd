@@ -20,8 +20,7 @@ func _run() -> void:
 
 	var camera: Camera3D = Camera3D.new()
 	camera.name = "PickCamera"
-	camera.position = Vector3(0, 0, 6)
-	camera.look_at(Vector3.ZERO, Vector3.UP)
+	camera.look_at_from_position(Vector3(0, 0, 6), Vector3.ZERO, Vector3.UP)
 	camera.current = true
 	root.add_child(camera)
 
@@ -33,7 +32,7 @@ func _run() -> void:
 		print("RESULT: PASS - ray pickability checks passed")
 	else:
 		print("RESULT: FAIL - ", failures, " ray pickability check(s) failed")
-	quit()
+	quit(1 if failures > 0 else 0)
 
 
 func _assert_result(condition: bool, message: String) -> void:

@@ -47,13 +47,11 @@ The resulting library is placed in `bin/` and loaded via `godot-box3d.gdextensio
 The `test_project/` folder contains headless smoke tests and a playable demo scene. For example:
 
 ```sh
-godot --headless --path test_project --script res://physics_contract_test.gd
-godot --headless --path test_project --script res://ray_pickability_test.gd
-godot --headless --path test_project --script res://fall_test.gd
-godot --headless --path test_project --script res://settle_test.gd
-godot --headless --path test_project --script res://area_test.gd
-godot --headless --path test_project --script res://joint_test.gd
+scripts/run_headless_tests.sh
 ```
+
+Set `GODOT_BIN=/path/to/godot` to test with a specific Godot executable.
+Set `BUILD_DIR=/path/to/build` to use a non-default CMake build directory.
 
 ## Contributing
 

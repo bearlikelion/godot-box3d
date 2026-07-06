@@ -2,8 +2,23 @@ extends SceneTree
 
 var failures: int = 0
 var contact_body_entered: bool = false
+var contact_body: ContactProbeBody
 var exception_body: RigidBody3D
 var damping_body: RigidBody3D
+
+
+class ContactProbeBody:
+	extends RigidBody3D
+
+	var max_contact_count: int = 0
+	var contact_collider_name: String = ""
+
+	func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+		max_contact_count = max(max_contact_count, state.get_contact_count())
+		if state.get_contact_count() > 0 and contact_collider_name.is_empty():
+			var collider: Node = state.get_contact_collider_object(0) as Node
+			if collider != null:
+				contact_collider_name = collider.name
 
 
 func _initialize() -> void:
@@ -36,7 +51,7 @@ func _run() -> void:
 		print("RESULT: PASS - physics contract checks passed")
 	else:
 		print("RESULT: FAIL - ", failures, " physics contract check(s) failed")
-	quit()
+	quit(1 if failures > 0 else 0)
 
 
 func _assert_result(condition: bool, message: String) -> void:
@@ -147,13 +162,13 @@ func _setup_contact_and_exception_contract() -> void:
 
 	var contact_platform: StaticBody3D = StaticBody3D.new()
 	contact_platform.name = "ContactPlatform"
-	contact_platform.position = Vector3(3, 0, 0)
+	contact_platform.position = Vector3(8, 0, 0)
 	contact_platform.add_child(_make_box_shape(Vector3(3, 0.5, 3)))
 	root.add_child(contact_platform)
 
-	var contact_body: RigidBody3D = RigidBody3D.new()
+	contact_body = ContactProbeBody.new()
 	contact_body.name = "ContactBody"
-	contact_body.position = Vector3(3, 4, 0)
+	contact_body.position = Vector3(8, 4, 0)
 	contact_body.contact_monitor = true
 	contact_body.max_contacts_reported = 4
 	contact_body.add_child(_make_sphere_shape(0.4))
@@ -167,6 +182,9 @@ func _on_contact_body_entered(body: Node) -> void:
 
 
 func _test_contact_and_exception_contract() -> void:
+	print("Contact probe max contact count: ", contact_body.max_contact_count, " collider: ", contact_body.contact_collider_name)
+	_assert_result(contact_body.max_contact_count > 0, "direct body state reports contacts for contact monitor body")
+	_assert_result(contact_body.contact_collider_name == "ContactPlatform", "direct body state reports contact collider object")
 	_assert_result(contact_body_entered, "RigidBody3D contact monitor reports body_entered")
 	_assert_result(exception_body.global_position.y < -1.0, "collision exceptions let a body pass through an excepted platform")
 

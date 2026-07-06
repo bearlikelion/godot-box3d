@@ -292,13 +292,24 @@ void Box3DSpace3D::_pull_body_events() {
 	for (int i = 0; i < events.moveCount; i++) {
 		const b3BodyMoveEvent& event = events.moveEvents[i];
 		auto* body = dynamic_cast<Box3DBodyImpl3D*>(static_cast<Box3DShapedObjectImpl3D*>(event.userData));
-		if (body == nullptr || !body->get_state_sync_callback().is_valid()) {
-			continue;
-		}
-		PendingStateSync sync;
-		sync.body = body;
-		pending_state_syncs.push_back(sync);
+		_queue_state_sync(body);
 	}
+}
+
+void Box3DSpace3D::_queue_state_sync(Box3DBodyImpl3D* p_body) {
+	if (p_body == nullptr || !p_body->get_state_sync_callback().is_valid()) {
+		return;
+	}
+
+	for (const PendingStateSync& sync : pending_state_syncs) {
+		if (sync.body == p_body) {
+			return;
+		}
+	}
+
+	PendingStateSync sync;
+	sync.body = p_body;
+	pending_state_syncs.push_back(sync);
 }
 
 void Box3DSpace3D::_pull_sensor_events() {
@@ -369,67 +380,71 @@ void Box3DSpace3D::_pull_contact_events() {
 		}
 
 		const int capacity = b3Body_GetContactCapacity(body->get_body_id());
-		if (capacity <= 0) {
-			continue;
-		}
+		if (capacity > 0) {
+			std::vector<b3ContactData> contact_data((size_t)capacity);
+			const int count = b3Body_GetContactData(body->get_body_id(), contact_data.data(), capacity);
+			for (int i = 0; i < count; i++) {
+				const b3ContactData& data = contact_data[(size_t)i];
+				Box3DShapedObjectImpl3D* object_a = object_from_shape(data.shapeIdA);
+				Box3DShapedObjectImpl3D* object_b = object_from_shape(data.shapeIdB);
+				auto* body_a = dynamic_cast<Box3DBodyImpl3D*>(object_a);
+				auto* body_b = dynamic_cast<Box3DBodyImpl3D*>(object_b);
+				if (body_a == nullptr || body_b == nullptr || data.manifolds == nullptr || data.manifoldCount <= 0) {
+					continue;
+				}
 
-		std::vector<b3ContactData> contact_data((size_t)capacity);
-		const int count = b3Body_GetContactData(body->get_body_id(), contact_data.data(), capacity);
-		for (int i = 0; i < count; i++) {
-			const b3ContactData& data = contact_data[(size_t)i];
-			Box3DShapedObjectImpl3D* object_a = object_from_shape(data.shapeIdA);
-			Box3DShapedObjectImpl3D* object_b = object_from_shape(data.shapeIdB);
-			auto* body_a = dynamic_cast<Box3DBodyImpl3D*>(object_a);
-			auto* body_b = dynamic_cast<Box3DBodyImpl3D*>(object_b);
-			if (body_a == nullptr || body_b == nullptr || data.manifolds == nullptr || data.manifoldCount <= 0) {
-				continue;
-			}
+				const bool body_is_a = body == body_a;
+				if (!body_is_a && body != body_b) {
+					continue;
+				}
 
-			const bool body_is_a = body == body_a;
-			if (!body_is_a && body != body_b) {
-				continue;
-			}
+				Box3DBodyImpl3D* collider = body_is_a ? body_b : body_a;
+				const int32_t local_shape = body->find_shape_index(body_is_a ? data.shapeIdA : data.shapeIdB);
+				const int32_t collider_shape = collider->find_shape_index(body_is_a ? data.shapeIdB : data.shapeIdA);
+				const b3BodyId local_body_id = body_is_a ? b3Shape_GetBody(data.shapeIdA) : b3Shape_GetBody(data.shapeIdB);
+				for (int manifold_index = 0; manifold_index < data.manifoldCount; manifold_index++) {
+					const b3Manifold& manifold = data.manifolds[manifold_index];
+					const Vector3 normal = body_is_a ? b3_to_godot(manifold.normal) : -b3_to_godot(manifold.normal);
+					for (int point_index = 0; point_index < manifold.pointCount; point_index++) {
+						const b3ManifoldPoint& point = manifold.points[point_index];
+						const Vector3 position = body_is_a
+								? contact_point_from_anchor(local_body_id, point.anchorA)
+								: contact_point_from_anchor(local_body_id, point.anchorB);
 
-			Box3DBodyImpl3D* collider = body_is_a ? body_b : body_a;
-			const int32_t local_shape = body->find_shape_index(body_is_a ? data.shapeIdA : data.shapeIdB);
-			const int32_t collider_shape = collider->find_shape_index(body_is_a ? data.shapeIdB : data.shapeIdA);
-			const b3BodyId local_body_id = body_is_a ? b3Shape_GetBody(data.shapeIdA) : b3Shape_GetBody(data.shapeIdB);
-			for (int manifold_index = 0; manifold_index < data.manifoldCount; manifold_index++) {
-				const b3Manifold& manifold = data.manifolds[manifold_index];
-				const Vector3 normal = body_is_a ? b3_to_godot(manifold.normal) : -b3_to_godot(manifold.normal);
-				for (int point_index = 0; point_index < manifold.pointCount; point_index++) {
-					const b3ManifoldPoint& point = manifold.points[point_index];
-					const Vector3 position = body_is_a
-							? contact_point_from_anchor(local_body_id, point.anchorA)
-							: contact_point_from_anchor(local_body_id, point.anchorB);
+						if (needs_debug_contacts && debug_contacts.size() < debug_contact_capacity && body == body_a) {
+							debug_contacts.push_back(position);
+						}
 
-					if (needs_debug_contacts && debug_contacts.size() < debug_contact_capacity && body == body_a) {
-						debug_contacts.push_back(position);
+						if (needs_body_contacts) {
+							Box3DBodyContact3D contact;
+							contact.position = position;
+							contact.normal = normal;
+							contact.impulse = normal * point.totalNormalImpulse;
+							contact.collider = collider->get_rid();
+							contact.collider_id = collider->get_instance_id();
+							contact.local_shape = local_shape;
+							contact.collider_shape = collider_shape;
+							contact.collider_position = collider->get_transform().origin;
+							contact.collider_velocity = collider->get_linear_velocity();
+							contact.collider_angular_velocity = collider->get_angular_velocity();
+							body->add_contact(contact);
+						}
+
+						if (needs_body_contacts && body->get_contacts().size() >= (uint32_t)body->get_max_contacts_reported()) {
+							break;
+						}
 					}
-
-					if (needs_body_contacts) {
-						Box3DBodyContact3D contact;
-						contact.position = position;
-						contact.normal = normal;
-						contact.impulse = normal * point.totalNormalImpulse;
-						contact.collider = collider->get_rid();
-						contact.collider_id = collider->get_instance_id();
-						contact.local_shape = local_shape;
-						contact.collider_shape = collider_shape;
-						contact.collider_position = collider->get_transform().origin;
-						contact.collider_velocity = collider->get_linear_velocity();
-						contact.collider_angular_velocity = collider->get_angular_velocity();
-						body->add_contact(contact);
-					}
-
 					if (needs_body_contacts && body->get_contacts().size() >= (uint32_t)body->get_max_contacts_reported()) {
 						break;
 					}
 				}
-				if (needs_body_contacts && body->get_contacts().size() >= (uint32_t)body->get_max_contacts_reported()) {
-					break;
-				}
 			}
+		}
+
+		// Contact-monitor bodies need state callbacks even on steps where Box3D reports
+		// no move event, otherwise body_entered/body_exited can miss resting contacts.
+		if (needs_body_contacts) {
+			_queue_state_sync(body);
 		}
 	}
 
