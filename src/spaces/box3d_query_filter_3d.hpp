@@ -16,6 +16,7 @@ struct Box3DQueryFilter3D {
 	HashSet<RID> exclude;
 	bool collide_with_bodies = true;
 	bool collide_with_areas = false;
+	bool pick_ray = false;
 
 	Box3DQueryFilter3D() = default;
 

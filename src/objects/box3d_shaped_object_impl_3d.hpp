@@ -28,6 +28,10 @@ public:
 
 	void set_transform(const Transform3D& p_transform);
 
+	void set_collision_layer(uint32_t p_layer) override;
+
+	void set_collision_mask(uint32_t p_mask) override;
+
 	void add_shape(Box3DShapeImpl3D* p_shape, const Transform3D& p_transform, bool p_disabled);
 
 	void remove_shape(const Box3DShapeImpl3D* p_shape);
@@ -56,6 +60,8 @@ public:
 	// space, and after body type transitions that need shapes recreated).
 	void rebuild_shapes();
 
+	int32_t find_shape_index(b3ShapeId p_shape_id) const;
+
 protected:
 	// Creates the underlying b3BodyId in the given world using the cached construction
 	// state (transform, velocities, ...). Subclasses fill in body-type-specific fields.
@@ -76,6 +82,8 @@ protected:
 	b3BodyId body_id = b3_nullBodyId;
 
 private:
+	void _sync_shape_filters();
+
 	void _create_shape_instance(Box3DShapeInstance3D& p_instance);
 
 	void _destroy_shape_instance(Box3DShapeInstance3D& p_instance);

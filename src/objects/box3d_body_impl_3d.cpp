@@ -378,3 +378,22 @@ void Box3DBodyImpl3D::pre_step() {
 		b3Body_ApplyTorque(body_id, godot_to_b3(constant_torque), false);
 	}
 }
+
+void Box3DBodyImpl3D::add_collision_exception(const RID& p_excepted_body) {
+	collision_exceptions.insert(p_excepted_body);
+}
+
+void Box3DBodyImpl3D::remove_collision_exception(const RID& p_excepted_body) {
+	collision_exceptions.erase(p_excepted_body);
+}
+
+bool Box3DBodyImpl3D::has_collision_exception(const RID& p_excepted_body) const {
+	return collision_exceptions.has(p_excepted_body);
+}
+
+void Box3DBodyImpl3D::add_contact(const Box3DBodyContact3D& p_contact) {
+	if (max_contacts_reported <= 0 || contacts.size() >= (uint32_t)max_contacts_reported) {
+		return;
+	}
+	contacts.push_back(p_contact);
+}

@@ -3,11 +3,26 @@
 #include "box3d_shaped_object_impl_3d.hpp"
 
 #include <godot_cpp/classes/physics_server3d.hpp>
+#include <godot_cpp/templates/hash_set.hpp>
+#include <godot_cpp/templates/local_vector.hpp>
 #include <godot_cpp/variant/callable.hpp>
 
 using namespace godot;
 
 class Box3DPhysicsDirectBodyState3D;
+
+struct Box3DBodyContact3D {
+	Vector3 position;
+	Vector3 normal;
+	Vector3 impulse;
+	RID collider;
+	uint64_t collider_id = 0;
+	int32_t local_shape = -1;
+	int32_t collider_shape = -1;
+	Vector3 collider_position;
+	Vector3 collider_velocity;
+	Vector3 collider_angular_velocity;
+};
 
 // RigidBody-facing wrapper: static/kinematic/dynamic bodies. Box3D requires a valid world
 // before a body can be created, so construction of the b3BodyId is deferred until
@@ -144,6 +159,20 @@ public:
 
 	void set_contact_monitor_enabled(bool p_enabled) { contact_monitor_enabled = p_enabled; }
 
+	void add_collision_exception(const RID& p_excepted_body);
+
+	void remove_collision_exception(const RID& p_excepted_body);
+
+	bool has_collision_exception(const RID& p_excepted_body) const;
+
+	const HashSet<RID>& get_collision_exceptions() const { return collision_exceptions; }
+
+	void clear_contacts() { contacts.clear(); }
+
+	void add_contact(const Box3DBodyContact3D& p_contact);
+
+	const LocalVector<Box3DBodyContact3D>& get_contacts() const { return contacts; }
+
 protected:
 	b3BodyId _create_body_id(b3WorldId p_world_id) override;
 
@@ -191,6 +220,8 @@ private:
 
 	int32_t max_contacts_reported = 0;
 	bool contact_monitor_enabled = false;
+	HashSet<RID> collision_exceptions;
+	LocalVector<Box3DBodyContact3D> contacts;
 
 	Box3DPhysicsDirectBodyState3D* direct_state = nullptr;
 };

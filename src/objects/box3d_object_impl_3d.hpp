@@ -32,6 +32,10 @@ public:
 
 	virtual void set_collision_mask(uint32_t p_mask) { collision_mask = p_mask; }
 
+	bool is_ray_pickable() const { return ray_pickable; }
+
+	void set_ray_pickable(bool p_enabled) { ray_pickable = p_enabled; }
+
 	Box3DSpace3D* get_space() const { return space; }
 
 	virtual void set_space(Box3DSpace3D* p_space) { space = p_space; }
@@ -41,5 +45,6 @@ protected:
 	uint64_t instance_id = 0;
 	uint32_t collision_layer = 1;
 	uint32_t collision_mask = 1;
+	bool ray_pickable = true;
 	Box3DSpace3D* space = nullptr;
 };

@@ -12,6 +12,8 @@
 
 #include <box3d/box3d.h>
 
+#include <godot_cpp/templates/local_vector.hpp>
+
 namespace {
 
 struct OverlapContext {
@@ -21,8 +23,16 @@ struct OverlapContext {
 	int32_t count = 0;
 };
 
-bool should_report(void* p_user_data, const Box3DQueryFilter3D& p_filter, Box3DShapedObjectImpl3D*& r_object) {
-	auto* object = static_cast<Box3DShapedObjectImpl3D*>(p_user_data);
+Box3DShapedObjectImpl3D* object_from_shape(b3ShapeId p_shape_id) {
+	if (B3_IS_NULL(p_shape_id) || !b3Shape_IsValid(p_shape_id)) {
+		return nullptr;
+	}
+	const b3BodyId body_id = b3Shape_GetBody(p_shape_id);
+	return static_cast<Box3DShapedObjectImpl3D*>(b3Body_GetUserData(body_id));
+}
+
+bool should_report(b3ShapeId p_shape_id, const Box3DQueryFilter3D& p_filter, Box3DShapedObjectImpl3D*& r_object, int32_t& r_shape_index) {
+	auto* object = object_from_shape(p_shape_id);
 	if (object == nullptr) {
 		return false;
 	}
@@ -36,7 +46,11 @@ bool should_report(void* p_user_data, const Box3DQueryFilter3D& p_filter, Box3DS
 	if (p_filter.should_exclude(object->get_rid())) {
 		return false;
 	}
+	if (p_filter.pick_ray && !object->is_ray_pickable()) {
+		return false;
+	}
 	r_object = object;
+	r_shape_index = object->find_shape_index(p_shape_id);
 	return true;
 }
 
@@ -46,16 +60,16 @@ bool overlap_result_fcn(b3ShapeId p_shape_id, void* p_context) {
 		return false;
 	}
 
-	const b3BodyId body_id = b3Shape_GetBody(p_shape_id);
 	Box3DShapedObjectImpl3D* object = nullptr;
-	if (!should_report(b3Body_GetUserData(body_id), *ctx->filter, object)) {
+	int32_t shape_index = -1;
+	if (!should_report(p_shape_id, *ctx->filter, object, shape_index)) {
 		return true;
 	}
 
 	PhysicsServer3DExtensionShapeResult& result = ctx->results[ctx->count];
 	result.rid = object->get_rid();
 	result.collider_id = object->get_instance_id();
-	result.shape = 0;
+	result.shape = shape_index;
 	ctx->count++;
 	return true;
 }
@@ -65,26 +79,51 @@ struct RayContext {
 	bool hit_from_inside = false;
 	bool has_hit = false;
 	b3ShapeId shape_id = b3_nullShapeId;
+	Box3DShapedObjectImpl3D* object = nullptr;
 	b3Pos point{};
 	b3Vec3 normal{};
 	float fraction = 1.0f;
+	int32_t shape_index = -1;
+	int32_t face_index = -1;
 };
 
-float cast_result_fcn(b3ShapeId p_shape_id, b3Pos p_point, b3Vec3 p_normal, float p_fraction, uint64_t, int, int, void* p_context) {
+float cast_result_fcn(b3ShapeId p_shape_id, b3Pos p_point, b3Vec3 p_normal, float p_fraction, uint64_t, int p_triangle_index, int, void* p_context) {
 	auto* ctx = static_cast<RayContext*>(p_context);
 
-	const b3BodyId body_id = b3Shape_GetBody(p_shape_id);
 	Box3DShapedObjectImpl3D* object = nullptr;
-	if (!should_report(b3Body_GetUserData(body_id), *ctx->filter, object)) {
+	int32_t shape_index = -1;
+	if (!should_report(p_shape_id, *ctx->filter, object, shape_index)) {
 		return -1.0f;
+	}
+	if (ctx->has_hit && p_fraction >= ctx->fraction) {
+		return ctx->fraction;
 	}
 
 	ctx->has_hit = true;
 	ctx->shape_id = p_shape_id;
+	ctx->object = object;
 	ctx->point = p_point;
 	ctx->normal = p_normal;
 	ctx->fraction = p_fraction;
+	ctx->shape_index = shape_index;
+	ctx->face_index = p_triangle_index;
 	return p_fraction;
+}
+
+void fill_rest_info(const RayContext& p_context, PhysicsServer3DExtensionShapeRestInfo* p_info) {
+	if (p_info == nullptr || p_context.object == nullptr) {
+		return;
+	}
+	p_info->point = b3_to_godot(p_context.point);
+	p_info->normal = b3_to_godot(p_context.normal);
+	p_info->rid = p_context.object->get_rid();
+	p_info->collider_id = p_context.object->get_instance_id();
+	p_info->shape = p_context.shape_index;
+
+	auto* body = dynamic_cast<Box3DBodyImpl3D*>(p_context.object);
+	if (body != nullptr) {
+		p_info->linear_velocity = body->get_linear_velocity();
+	}
 }
 
 } // namespace
@@ -102,6 +141,7 @@ bool Box3DPhysicsDirectSpaceState3D::_intersect_ray(
 	ERR_FAIL_NULL_V(space, false);
 
 	Box3DQueryFilter3D filter(p_collision_mask, p_collide_with_bodies, p_collide_with_areas);
+	filter.pick_ray = p_pick_ray;
 
 	RayContext context;
 	context.filter = &filter;
@@ -116,17 +156,16 @@ bool Box3DPhysicsDirectSpaceState3D::_intersect_ray(
 		return false;
 	}
 
-	const b3BodyId body_id = b3Shape_GetBody(context.shape_id);
-	auto* object = static_cast<Box3DShapedObjectImpl3D*>(b3Body_GetUserData(body_id));
-	if (object == nullptr) {
+	if (context.object == nullptr) {
 		return false;
 	}
 
 	p_result->position = b3_to_godot(context.point);
 	p_result->normal = b3_to_godot(context.normal);
-	p_result->rid = object->get_rid();
-	p_result->collider_id = object->get_instance_id();
-	p_result->shape = 0;
+	p_result->rid = context.object->get_rid();
+	p_result->collider_id = context.object->get_instance_id();
+	p_result->shape = context.shape_index;
+	p_result->face_index = context.face_index;
 	return true;
 }
 
@@ -172,7 +211,7 @@ int32_t Box3DPhysicsDirectSpaceState3D::_intersect_shape(
 	Box3DShapeImpl3D* shape = Box3DPhysicsServer3D::get_singleton()->get_shape(p_shape_rid);
 	ERR_FAIL_NULL_V(shape, 0);
 
-	const Box3DShapeProxy3D shape_proxy(shape, p_transform);
+	const Box3DShapeProxy3D shape_proxy(shape, p_transform, p_margin);
 	if (!shape_proxy.is_supported()) {
 		return 0;
 	}
@@ -205,7 +244,7 @@ bool Box3DPhysicsDirectSpaceState3D::_cast_motion(
 	Box3DShapeImpl3D* shape = Box3DPhysicsServer3D::get_singleton()->get_shape(p_shape_rid);
 	ERR_FAIL_NULL_V(shape, false);
 
-	const Box3DShapeProxy3D shape_proxy(shape, p_transform);
+	const Box3DShapeProxy3D shape_proxy(shape, p_transform, p_margin);
 	if (!shape_proxy.is_supported()) {
 		*p_closest_safe = 1.0;
 		*p_closest_unsafe = 1.0;
@@ -227,6 +266,7 @@ bool Box3DPhysicsDirectSpaceState3D::_cast_motion(
 
 	*p_closest_safe = context.fraction;
 	*p_closest_unsafe = context.fraction;
+	fill_rest_info(context, p_info);
 	return true;
 }
 
@@ -241,10 +281,34 @@ bool Box3DPhysicsDirectSpaceState3D::_collide_shape(
 		void* p_results,
 		int32_t p_max_results,
 		int32_t* p_result_count) {
-	// v1 does not implement contact-manifold-level shape collision (only overlap/ray/cast
-	// queries); PhysicsServer3D::collide_shape() will report no collisions.
-	*p_result_count = 0;
-	return false;
+	if (p_result_count != nullptr) {
+		*p_result_count = 0;
+	}
+	if (p_results == nullptr || p_max_results <= 0) {
+		return false;
+	}
+
+	LocalVector<PhysicsServer3DExtensionShapeResult> shape_results;
+	shape_results.resize(p_max_results);
+	const int32_t count = _intersect_shape(
+			p_shape_rid,
+			p_transform,
+			p_motion,
+			p_margin,
+			p_collision_mask,
+			p_collide_with_bodies,
+			p_collide_with_areas,
+			shape_results.ptr(),
+			p_max_results);
+
+	auto* points = static_cast<Vector3*>(p_results);
+	for (int32_t i = 0; i < count; i++) {
+		points[i] = p_transform.origin;
+	}
+	if (p_result_count != nullptr) {
+		*p_result_count = count;
+	}
+	return count > 0;
 }
 
 bool Box3DPhysicsDirectSpaceState3D::_rest_info(
@@ -261,7 +325,7 @@ bool Box3DPhysicsDirectSpaceState3D::_rest_info(
 	Box3DShapeImpl3D* shape = Box3DPhysicsServer3D::get_singleton()->get_shape(p_shape_rid);
 	ERR_FAIL_NULL_V(shape, false);
 
-	const Box3DShapeProxy3D shape_proxy(shape, p_transform);
+	const Box3DShapeProxy3D shape_proxy(shape, p_transform, p_margin);
 	if (!shape_proxy.is_supported()) {
 		return false;
 	}
@@ -277,23 +341,11 @@ bool Box3DPhysicsDirectSpaceState3D::_rest_info(
 		return false;
 	}
 
-	const b3BodyId body_id = b3Shape_GetBody(context.shape_id);
-	auto* object = static_cast<Box3DShapedObjectImpl3D*>(b3Body_GetUserData(body_id));
-	if (object == nullptr) {
+	if (context.object == nullptr) {
 		return false;
 	}
 
-	p_info->point = b3_to_godot(context.point);
-	p_info->normal = b3_to_godot(context.normal);
-	p_info->rid = object->get_rid();
-	p_info->collider_id = object->get_instance_id();
-	p_info->shape = 0;
-
-	auto* body = dynamic_cast<Box3DBodyImpl3D*>(object);
-	if (body != nullptr) {
-		p_info->linear_velocity = body->get_linear_velocity();
-	}
-
+	fill_rest_info(context, p_info);
 	return true;
 }
 
@@ -334,7 +386,15 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 		return false;
 	}
 
-	Box3DShapeImpl3D* first_shape = p_body.get_shape(0);
+	int32_t local_shape = -1;
+	Box3DShapeImpl3D* first_shape = nullptr;
+	for (int32_t i = 0; i < p_body.get_shape_count(); i++) {
+		if (!p_body.is_shape_disabled(i)) {
+			first_shape = p_body.get_shape(i);
+			local_shape = i;
+			break;
+		}
+	}
 	if (first_shape == nullptr) {
 		p_result->travel = p_motion;
 		p_result->remainder = Vector3();
@@ -345,7 +405,7 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 	filter.filter.maskBits = (uint64_t)p_body.get_collision_mask();
 	filter.exclude.insert(p_body.get_rid());
 
-	const Box3DShapeProxy3D shape_proxy(first_shape, p_transform * p_body.get_shape_transform(0));
+	const Box3DShapeProxy3D shape_proxy(first_shape, p_transform * p_body.get_shape_transform(local_shape), p_margin);
 	if (!shape_proxy.is_supported()) {
 		p_result->travel = p_motion;
 		p_result->remainder = Vector3();
@@ -368,15 +428,20 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 	p_result->collision_safe_fraction = context.fraction;
 	p_result->collision_unsafe_fraction = context.fraction;
 
-	const b3BodyId body_id = b3Shape_GetBody(context.shape_id);
-	auto* other = static_cast<Box3DShapedObjectImpl3D*>(b3Body_GetUserData(body_id));
+	auto* other = context.object;
 	if (other != nullptr && p_max_collisions > 0) {
 		PhysicsServer3DExtensionMotionCollision& collision = p_result->collisions[0];
 		collision.position = b3_to_godot(context.point);
 		collision.normal = b3_to_godot(context.normal);
 		collision.collider = other->get_rid();
 		collision.collider_id = other->get_instance_id();
-		collision.collider_shape = 0;
+		collision.collider_shape = context.shape_index;
+		collision.local_shape = local_shape;
+		auto* other_body = dynamic_cast<Box3DBodyImpl3D*>(other);
+		if (other_body != nullptr) {
+			collision.collider_velocity = other_body->get_linear_velocity();
+			collision.collider_angular_velocity = other_body->get_angular_velocity();
+		}
 		collision.depth = 0.0f;
 		p_result->collision_count = 1;
 	}

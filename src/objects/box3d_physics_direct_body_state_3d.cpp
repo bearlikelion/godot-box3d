@@ -7,6 +7,17 @@
 
 #include <box3d/box3d.h>
 
+namespace {
+
+const Box3DBodyContact3D* get_contact_or_null(const Box3DBodyImpl3D* p_body, int32_t p_index) {
+	if (p_body == nullptr || p_index < 0 || p_index >= (int32_t)p_body->get_contacts().size()) {
+		return nullptr;
+	}
+	return &p_body->get_contacts()[p_index];
+}
+
+} // namespace
+
 Vector3 Box3DPhysicsDirectBodyState3D::_get_total_gravity() const {
 	if (body->get_space() != nullptr) {
 		return b3_to_godot(b3World_GetGravity(body->get_space()->get_world_id())) * (float)body->get_gravity_scale();
@@ -149,42 +160,50 @@ bool Box3DPhysicsDirectBodyState3D::_is_sleeping() const {
 }
 
 int32_t Box3DPhysicsDirectBodyState3D::_get_contact_count() const {
-	if (!body->has_body_id()) {
-		return 0;
-	}
-	return b3Body_GetContactCapacity(body->get_body_id());
+	return (int32_t)body->get_contacts().size();
 }
 
 Vector3 Box3DPhysicsDirectBodyState3D::_get_contact_local_position(int32_t p_index) const {
-	return Vector3();
+	const Box3DBodyContact3D* contact = get_contact_or_null(body, p_index);
+	return contact != nullptr ? body->get_transform().affine_inverse().xform(contact->position) : Vector3();
 }
 
 Vector3 Box3DPhysicsDirectBodyState3D::_get_contact_local_normal(int32_t p_index) const {
-	return Vector3();
+	const Box3DBodyContact3D* contact = get_contact_or_null(body, p_index);
+	return contact != nullptr ? body->get_transform().basis.inverse().xform(contact->normal).normalized() : Vector3();
 }
 
 Vector3 Box3DPhysicsDirectBodyState3D::_get_contact_impulse(int32_t p_index) const {
-	return Vector3();
+	const Box3DBodyContact3D* contact = get_contact_or_null(body, p_index);
+	return contact != nullptr ? contact->impulse : Vector3();
 }
 
 int32_t Box3DPhysicsDirectBodyState3D::_get_contact_local_shape(int32_t p_index) const {
-	return 0;
+	const Box3DBodyContact3D* contact = get_contact_or_null(body, p_index);
+	return contact != nullptr ? contact->local_shape : -1;
 }
 
 Vector3 Box3DPhysicsDirectBodyState3D::_get_contact_local_velocity_at_position(int32_t p_index) const {
-	return Vector3();
+	const Box3DBodyContact3D* contact = get_contact_or_null(body, p_index);
+	if (contact == nullptr || !body->has_body_id()) {
+		return Vector3();
+	}
+	return b3_to_godot(b3Body_GetWorldPointVelocity(body->get_body_id(), godot_to_b3(contact->position)));
 }
 
 RID Box3DPhysicsDirectBodyState3D::_get_contact_collider(int32_t p_index) const {
-	return RID();
+	const Box3DBodyContact3D* contact = get_contact_or_null(body, p_index);
+	return contact != nullptr ? contact->collider : RID();
 }
 
 Vector3 Box3DPhysicsDirectBodyState3D::_get_contact_collider_position(int32_t p_index) const {
-	return Vector3();
+	const Box3DBodyContact3D* contact = get_contact_or_null(body, p_index);
+	return contact != nullptr ? contact->collider_position : Vector3();
 }
 
 uint64_t Box3DPhysicsDirectBodyState3D::_get_contact_collider_id(int32_t p_index) const {
-	return 0;
+	const Box3DBodyContact3D* contact = get_contact_or_null(body, p_index);
+	return contact != nullptr ? contact->collider_id : 0;
 }
 
 Object* Box3DPhysicsDirectBodyState3D::_get_contact_collider_object(int32_t p_index) const {
@@ -192,11 +211,13 @@ Object* Box3DPhysicsDirectBodyState3D::_get_contact_collider_object(int32_t p_in
 }
 
 int32_t Box3DPhysicsDirectBodyState3D::_get_contact_collider_shape(int32_t p_index) const {
-	return 0;
+	const Box3DBodyContact3D* contact = get_contact_or_null(body, p_index);
+	return contact != nullptr ? contact->collider_shape : -1;
 }
 
 Vector3 Box3DPhysicsDirectBodyState3D::_get_contact_collider_velocity_at_position(int32_t p_index) const {
-	return Vector3();
+	const Box3DBodyContact3D* contact = get_contact_or_null(body, p_index);
+	return contact != nullptr ? contact->collider_velocity : Vector3();
 }
 
 double Box3DPhysicsDirectBodyState3D::_get_step() const {

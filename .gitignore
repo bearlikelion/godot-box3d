@@ -1,4 +1,6 @@
 build/
+build-*/
 .fetchcontent-cache/
 bin/
+/temp/
 test_project/.godot/

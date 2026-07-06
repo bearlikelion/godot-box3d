@@ -13,6 +13,7 @@
 #include "../shapes/box3d_capsule_shape_impl_3d.hpp"
 #include "../shapes/box3d_concave_polygon_shape_impl_3d.hpp"
 #include "../shapes/box3d_convex_polygon_shape_impl_3d.hpp"
+#include "../shapes/box3d_cylinder_shape_impl_3d.hpp"
 #include "../shapes/box3d_heightmap_shape_impl_3d.hpp"
 #include "../shapes/box3d_shape_impl_3d.hpp"
 #include "../shapes/box3d_sphere_shape_impl_3d.hpp"
@@ -79,7 +80,10 @@ RID Box3DPhysicsServer3D::_capsule_shape_create() {
 }
 
 RID Box3DPhysicsServer3D::_cylinder_shape_create() {
-	ERR_FAIL_V_MSG(RID(), "Box3D: CylinderShape3D is not supported in this version of the Box3D extension.");
+	auto* shape = memnew(Box3DCylinderShapeImpl3D);
+	const RID rid = shape_owner.make_rid(shape);
+	shape->set_rid(rid);
+	return rid;
 }
 
 RID Box3DPhysicsServer3D::_convex_polygon_shape_create() {
@@ -194,15 +198,21 @@ PhysicsDirectSpaceState3D* Box3DPhysicsServer3D::_space_get_direct_state(const R
 }
 
 void Box3DPhysicsServer3D::_space_set_debug_contacts(const RID& p_space, int32_t p_max_contacts) {
-	// Not implemented in v1 (no debug draw).
+	Box3DSpace3D* space = space_owner.get_or_null(p_space);
+	ERR_FAIL_NULL(space);
+	space->set_debug_contact_capacity(p_max_contacts);
 }
 
 PackedVector3Array Box3DPhysicsServer3D::_space_get_contacts(const RID& p_space) const {
-	return PackedVector3Array();
+	Box3DSpace3D* space = space_owner.get_or_null(p_space);
+	ERR_FAIL_NULL_V(space, PackedVector3Array());
+	return space->get_debug_contacts();
 }
 
 int32_t Box3DPhysicsServer3D::_space_get_contact_count(const RID& p_space) const {
-	return 0;
+	Box3DSpace3D* space = space_owner.get_or_null(p_space);
+	ERR_FAIL_NULL_V(space, 0);
+	return space->get_debug_contact_count();
 }
 
 // --- Areas ---
@@ -363,7 +373,9 @@ void Box3DPhysicsServer3D::_area_set_monitorable(const RID& p_area, bool p_monit
 }
 
 void Box3DPhysicsServer3D::_area_set_ray_pickable(const RID& p_area, bool p_enable) {
-	// Not implemented in v1 (no editor picking support).
+	Box3DAreaImpl3D* area = area_owner.get_or_null(p_area);
+	ERR_FAIL_NULL(area);
+	area->set_ray_pickable(p_enable);
 }
 
 void Box3DPhysicsServer3D::_area_set_monitor_callback(const RID& p_area, const Callable& p_callback) {
@@ -762,17 +774,25 @@ bool Box3DPhysicsServer3D::_body_is_axis_locked(const RID& p_body, PhysicsServer
 }
 
 void Box3DPhysicsServer3D::_body_add_collision_exception(const RID& p_body, const RID& p_excepted_body) {
-	// v1: full per-pair collision exception lists are a non-goal. The common single-group
-	// case is handled via b3Filter.groupIndex instead (see the plan's Non-goals section).
-	WARN_PRINT_ONCE("Box3D: per-pair collision exceptions are not implemented in this version; use collision layers/masks instead.");
+	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL(body);
+	body->add_collision_exception(p_excepted_body);
 }
 
 void Box3DPhysicsServer3D::_body_remove_collision_exception(const RID& p_body, const RID& p_excepted_body) {
-	// See _body_add_collision_exception.
+	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL(body);
+	body->remove_collision_exception(p_excepted_body);
 }
 
 TypedArray<RID> Box3DPhysicsServer3D::_body_get_collision_exceptions(const RID& p_body) const {
-	return TypedArray<RID>();
+	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL_V(body, TypedArray<RID>());
+	TypedArray<RID> exceptions;
+	for (const RID& exception : body->get_collision_exceptions()) {
+		exceptions.push_back(exception);
+	}
+	return exceptions;
 }
 
 void Box3DPhysicsServer3D::_body_set_max_contacts_reported(const RID& p_body, int32_t p_amount) {
@@ -817,7 +837,9 @@ void Box3DPhysicsServer3D::_body_set_force_integration_callback(const RID& p_bod
 }
 
 void Box3DPhysicsServer3D::_body_set_ray_pickable(const RID& p_body, bool p_enable) {
-	// Not implemented in v1 (no editor picking support).
+	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL(body);
+	body->set_ray_pickable(p_enable);
 }
 
 bool Box3DPhysicsServer3D::_body_test_motion(
@@ -1264,5 +1286,9 @@ bool Box3DPhysicsServer3D::_is_flushing_queries() const {
 }
 
 int32_t Box3DPhysicsServer3D::_get_process_info(PhysicsServer3D::ProcessInfo p_process_info) {
-	return 0;
+	int32_t total = 0;
+	for (Box3DSpace3D* space : active_spaces) {
+		total += space->get_process_info(p_process_info);
+	}
+	return total;
 }
