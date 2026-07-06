@@ -172,6 +172,18 @@ void Box3DBodyImpl3D::set_angular_damping(real_t p_damping) {
 	}
 }
 
+void Box3DBodyImpl3D::apply_runtime_area_state(const Vector3& p_total_gravity, real_t p_linear_damping, real_t p_angular_damping) {
+	effective_total_gravity = p_total_gravity;
+	effective_linear_damping = p_linear_damping;
+	effective_angular_damping = p_angular_damping;
+	runtime_area_state_valid = true;
+
+	if (has_body_id()) {
+		b3Body_SetLinearDamping(body_id, (float)p_linear_damping);
+		b3Body_SetAngularDamping(body_id, (float)p_angular_damping);
+	}
+}
+
 void Box3DBodyImpl3D::set_gravity_scale(real_t p_scale) {
 	gravity_scale = p_scale;
 	if (has_body_id()) {

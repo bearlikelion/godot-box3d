@@ -29,6 +29,10 @@ namespace {
 
 constexpr const char* BOX3D_SOFT_BODY_UNSUPPORTED_MESSAGE =
 		"Box3D: SoftBody3D is not supported in this version of the Box3D extension.";
+constexpr const char* BOX3D_CONE_TWIST_UNSUPPORTED_MESSAGE =
+		"Box3D: ConeTwistJoint3D is not supported in this version of the Box3D extension.";
+constexpr const char* BOX3D_GENERIC_6DOF_UNSUPPORTED_MESSAGE =
+		"Box3D: Generic6DOFJoint3D is not supported in this version of the Box3D extension.";
 
 }
 
@@ -1030,31 +1034,37 @@ double Box3DPhysicsServer3D::_slider_joint_get_param(const RID& p_joint, Physics
 }
 
 void Box3DPhysicsServer3D::_joint_make_cone_twist(const RID& p_joint, const RID& p_body_a, const Transform3D& p_local_ref_a, const RID& p_body_b, const Transform3D& p_local_ref_b) {
-	ERR_FAIL_MSG("Box3D: ConeTwistJoint3D is not supported in this version of the Box3D extension.");
+	ERR_FAIL_MSG(BOX3D_CONE_TWIST_UNSUPPORTED_MESSAGE);
 }
 
 void Box3DPhysicsServer3D::_cone_twist_joint_set_param(const RID& p_joint, PhysicsServer3D::ConeTwistJointParam p_param, double p_value) {
+	WARN_PRINT_ONCE(BOX3D_CONE_TWIST_UNSUPPORTED_MESSAGE);
 }
 
 double Box3DPhysicsServer3D::_cone_twist_joint_get_param(const RID& p_joint, PhysicsServer3D::ConeTwistJointParam p_param) const {
+	WARN_PRINT_ONCE(BOX3D_CONE_TWIST_UNSUPPORTED_MESSAGE);
 	return 0.0;
 }
 
 void Box3DPhysicsServer3D::_joint_make_generic_6dof(const RID& p_joint, const RID& p_body_a, const Transform3D& p_local_ref_a, const RID& p_body_b, const Transform3D& p_local_ref_b) {
-	ERR_FAIL_MSG("Box3D: Generic6DOFJoint3D is not supported in this version of the Box3D extension.");
+	ERR_FAIL_MSG(BOX3D_GENERIC_6DOF_UNSUPPORTED_MESSAGE);
 }
 
 void Box3DPhysicsServer3D::_generic_6dof_joint_set_param(const RID& p_joint, Vector3::Axis p_axis, PhysicsServer3D::G6DOFJointAxisParam p_param, double p_value) {
+	WARN_PRINT_ONCE(BOX3D_GENERIC_6DOF_UNSUPPORTED_MESSAGE);
 }
 
 double Box3DPhysicsServer3D::_generic_6dof_joint_get_param(const RID& p_joint, Vector3::Axis p_axis, PhysicsServer3D::G6DOFJointAxisParam p_param) const {
+	WARN_PRINT_ONCE(BOX3D_GENERIC_6DOF_UNSUPPORTED_MESSAGE);
 	return 0.0;
 }
 
 void Box3DPhysicsServer3D::_generic_6dof_joint_set_flag(const RID& p_joint, Vector3::Axis p_axis, PhysicsServer3D::G6DOFJointAxisFlag p_flag, bool p_enable) {
+	WARN_PRINT_ONCE(BOX3D_GENERIC_6DOF_UNSUPPORTED_MESSAGE);
 }
 
 bool Box3DPhysicsServer3D::_generic_6dof_joint_get_flag(const RID& p_joint, Vector3::Axis p_axis, PhysicsServer3D::G6DOFJointAxisFlag p_flag) const {
+	WARN_PRINT_ONCE(BOX3D_GENERIC_6DOF_UNSUPPORTED_MESSAGE);
 	return false;
 }
 

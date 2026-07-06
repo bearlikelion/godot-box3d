@@ -21,6 +21,9 @@ const Box3DBodyContact3D* get_contact_or_null(const Box3DBodyImpl3D* p_body, int
 } // namespace
 
 Vector3 Box3DPhysicsDirectBodyState3D::_get_total_gravity() const {
+	if (body->has_runtime_area_state()) {
+		return body->get_effective_total_gravity();
+	}
 	if (body->get_space() != nullptr) {
 		return b3_to_godot(b3World_GetGravity(body->get_space()->get_world_id())) * (float)body->get_gravity_scale();
 	}
@@ -28,11 +31,11 @@ Vector3 Box3DPhysicsDirectBodyState3D::_get_total_gravity() const {
 }
 
 double Box3DPhysicsDirectBodyState3D::_get_total_angular_damp() const {
-	return body->get_angular_damping();
+	return body->get_effective_angular_damping();
 }
 
 double Box3DPhysicsDirectBodyState3D::_get_total_linear_damp() const {
-	return body->get_linear_damping();
+	return body->get_effective_linear_damping();
 }
 
 Vector3 Box3DPhysicsDirectBodyState3D::_get_center_of_mass() const {

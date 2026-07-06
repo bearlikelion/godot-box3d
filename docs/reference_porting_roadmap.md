@@ -23,9 +23,11 @@ This tracks features reviewed from `temp/` reference projects that are useful bu
 - Add focused headless Godot integration coverage for contact callbacks, collision exceptions, cylinder queries, query exclusions, `collide_shape()` pairs, and multi-shape motion.
 - Report all `SoftBody3D` server APIs as explicitly unsupported while keeping the methods inert and returning safe defaults.
 - Add viewport object-picking coverage for body and area ray pickability; this exercises Godot's `pick_ray` path instead of only public direct-space ray queries.
+- Apply Area3D linear and angular damping override modes through the same priority-ordered area pass used for gravity, while preserving each body's configured base damping.
+- Report unsupported ConeTwist and Generic6DOF joint API calls consistently instead of silently accepting setter/getter calls after construction fails.
 
 ## P2 - Larger follow-up projects
 
-- Add recording/replay or timewarp tooling on top of Box3D snapshots only after deterministic state ownership is documented.
+- Keep recording/replay or timewarp tooling out of the core backend until a design doc defines deterministic state ownership, node/RID mapping, and whether it ships as a companion extension or a narrow optional API on `Box3DSpace3D`.
 - Add editor/debug visual overlays for contact normals, active islands, broadphase pairs, and sleeping state.
 - Consider a generic shape-hull factory to share polygonal approximation code if more analytic shapes are added.

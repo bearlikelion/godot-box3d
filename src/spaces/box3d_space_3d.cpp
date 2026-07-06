@@ -17,6 +17,8 @@
 namespace {
 constexpr int SUB_STEP_COUNT = 4;
 
+using AreaSpaceOverrideMode = PhysicsServer3D::AreaSpaceOverrideMode;
+
 bool collision_layers_match(const Box3DShapedObjectImpl3D* p_a, const Box3DShapedObjectImpl3D* p_b) {
 	return p_a != nullptr && p_b != nullptr &&
 			(p_a->get_collision_mask() & p_b->get_collision_layer()) != 0 &&
@@ -53,6 +55,77 @@ bool custom_filter_callback(b3ShapeId p_shape_a, b3ShapeId p_shape_b, void* p_co
 Vector3 contact_point_from_anchor(b3BodyId p_body_id, const b3Vec3& p_anchor) {
 	return b3_to_godot(b3Body_GetWorldCenterOfMass(p_body_id)) + b3_to_godot(p_anchor);
 }
+
+template <typename T>
+bool apply_area_space_override(AreaSpaceOverrideMode p_mode, const T& p_area_value, T& r_value) {
+	switch (p_mode) {
+		case PhysicsServer3D::AREA_SPACE_OVERRIDE_COMBINE:
+			r_value += p_area_value;
+			return false;
+		case PhysicsServer3D::AREA_SPACE_OVERRIDE_COMBINE_REPLACE:
+			r_value += p_area_value;
+			return true;
+		case PhysicsServer3D::AREA_SPACE_OVERRIDE_REPLACE:
+			r_value = p_area_value;
+			return true;
+		case PhysicsServer3D::AREA_SPACE_OVERRIDE_REPLACE_COMBINE:
+			r_value = p_area_value;
+			return false;
+		case PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED:
+		default:
+			return false;
+	}
+}
+
+template <typename T, typename ValueGetter, typename ModeGetter>
+T calculate_area_override_value(
+		const std::vector<Box3DAreaImpl3D*>& p_areas,
+		T p_base_value,
+		ValueGetter p_value_getter,
+		ModeGetter p_mode_getter) {
+	T value = p_base_value;
+	for (const Box3DAreaImpl3D* area : p_areas) {
+		if (apply_area_space_override(p_mode_getter(area), p_value_getter(area), value)) {
+			break;
+		}
+	}
+	return value;
+}
+
+bool area_overlaps_body(const Box3DAreaImpl3D* p_area, const Box3DBodyImpl3D* p_body) {
+	for (const KeyValue<Box3DShapedObjectImpl3D*, int32_t>& overlap : p_area->get_overlaps()) {
+		if (overlap.key == p_body) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool area_has_active_override(const Box3DAreaImpl3D* p_area) {
+	return p_area->get_gravity_mode() != PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED ||
+			p_area->get_linear_damp_mode() != PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED ||
+			p_area->get_angular_damp_mode() != PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED;
+}
+
+std::vector<Box3DAreaImpl3D*> collect_overriding_areas(const HashSet<Box3DAreaImpl3D*>& p_areas, const Box3DBodyImpl3D* p_body) {
+	std::vector<Box3DAreaImpl3D*> overriding_areas;
+	for (Box3DAreaImpl3D* area : p_areas) {
+		if (area->is_default_area() || !area_has_active_override(area) || !area_overlaps_body(area, p_body)) {
+			continue;
+		}
+		overriding_areas.push_back(area);
+	}
+
+	std::sort(overriding_areas.begin(), overriding_areas.end(), [](const Box3DAreaImpl3D* p_a, const Box3DAreaImpl3D* p_b) {
+		if (p_a->get_priority() == p_b->get_priority()) {
+			return p_a->get_rid().get_id() < p_b->get_rid().get_id();
+		}
+		return p_a->get_priority() > p_b->get_priority();
+	});
+
+	return overriding_areas;
+}
+
 } // namespace
 
 Box3DSpace3D::Box3DSpace3D() {
@@ -139,7 +212,10 @@ void Box3DSpace3D::set_default_area(Box3DAreaImpl3D* p_area) {
 void Box3DSpace3D::step(float p_step) {
 	last_step = p_step;
 
-	_apply_area_overrides();
+	const Vector3 default_gravity = default_area != nullptr ? default_area->compute_gravity(Vector3()) : Vector3();
+	b3World_SetGravity(world_id, godot_to_b3(default_gravity));
+
+	_apply_area_overrides(default_gravity);
 
 	for (Box3DBodyImpl3D* body : bodies) {
 		if (body->get_force_integration_callback().is_valid()) {
@@ -158,10 +234,6 @@ void Box3DSpace3D::step(float p_step) {
 		body->pre_step();
 	}
 
-	if (default_area != nullptr) {
-		b3World_SetGravity(world_id, godot_to_b3(default_area->compute_gravity(Vector3())));
-	}
-
 	b3World_Step(world_id, p_step, SUB_STEP_COUNT);
 
 	_pull_body_events();
@@ -173,23 +245,38 @@ void Box3DSpace3D::step(float p_step) {
 	b3World_GetJointEvents(world_id);
 }
 
-void Box3DSpace3D::_apply_area_overrides() {
-	for (Box3DAreaImpl3D* area : areas) {
-		if (area->get_gravity_mode() == PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED &&
-				area->get_linear_damp_mode() == PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED &&
-				area->get_angular_damp_mode() == PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED) {
+void Box3DSpace3D::_apply_area_overrides(const Vector3& p_default_gravity) {
+	for (Box3DBodyImpl3D* body : bodies) {
+		if (body == nullptr || !body->has_body_id()) {
 			continue;
 		}
 
-		for (const KeyValue<Box3DShapedObjectImpl3D*, int32_t>& overlap : area->get_overlaps()) {
-			auto* body = dynamic_cast<Box3DBodyImpl3D*>(overlap.key);
-			if (body == nullptr || !body->has_body_id()) {
-				continue;
-			}
-			if (area->get_gravity_mode() != PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED) {
-				const Vector3 gravity = area->compute_gravity(body->get_transform().origin);
-				b3Body_ApplyForceToCenter(body->get_body_id(), godot_to_b3(gravity * (float)body->get_mass()), false);
-			}
+		const std::vector<Box3DAreaImpl3D*> overriding_areas = collect_overriding_areas(areas, body);
+		const Vector3 body_position = body->get_transform().origin;
+
+		const Vector3 unscaled_total_gravity = calculate_area_override_value<Vector3>(
+				overriding_areas,
+				p_default_gravity,
+				[body_position](const Box3DAreaImpl3D* p_area) { return p_area->compute_gravity(body_position); },
+				[](const Box3DAreaImpl3D* p_area) { return p_area->get_gravity_mode(); });
+		const real_t linear_damping = calculate_area_override_value<real_t>(
+				overriding_areas,
+				body->get_linear_damping(),
+				[](const Box3DAreaImpl3D* p_area) { return (real_t)p_area->get_linear_damp(); },
+				[](const Box3DAreaImpl3D* p_area) { return p_area->get_linear_damp_mode(); });
+		const real_t angular_damping = calculate_area_override_value<real_t>(
+				overriding_areas,
+				body->get_angular_damping(),
+				[](const Box3DAreaImpl3D* p_area) { return (real_t)p_area->get_angular_damp(); },
+				[](const Box3DAreaImpl3D* p_area) { return p_area->get_angular_damp_mode(); });
+
+		const real_t gravity_scale = body->get_gravity_scale();
+		const Vector3 scaled_total_gravity = unscaled_total_gravity * gravity_scale;
+		body->apply_runtime_area_state(scaled_total_gravity, linear_damping, angular_damping);
+
+		const Vector3 extra_gravity = (unscaled_total_gravity - p_default_gravity) * gravity_scale;
+		if (!extra_gravity.is_zero_approx()) {
+			b3Body_ApplyForceToCenter(body->get_body_id(), godot_to_b3(extra_gravity * (float)body->get_mass()), false);
 		}
 	}
 }

@@ -62,6 +62,8 @@ public:
 
 	void set_linear_damping(real_t p_damping);
 
+	real_t get_effective_linear_damping() const { return runtime_area_state_valid ? effective_linear_damping : linear_damping; }
+
 	real_t get_bounce() const { return bounce; }
 
 	void set_bounce(real_t p_bounce) { bounce = p_bounce; }
@@ -74,9 +76,17 @@ public:
 
 	void set_angular_damping(real_t p_damping);
 
+	real_t get_effective_angular_damping() const { return runtime_area_state_valid ? effective_angular_damping : angular_damping; }
+
 	real_t get_gravity_scale() const { return gravity_scale; }
 
 	void set_gravity_scale(real_t p_scale);
+
+	bool has_runtime_area_state() const { return runtime_area_state_valid; }
+
+	Vector3 get_effective_total_gravity() const { return effective_total_gravity; }
+
+	void apply_runtime_area_state(const Vector3& p_total_gravity, real_t p_linear_damping, real_t p_angular_damping);
 
 	Vector3 get_linear_velocity() const;
 
@@ -194,6 +204,10 @@ private:
 
 	real_t linear_damping = 0.0;
 	real_t angular_damping = 0.0;
+	real_t effective_linear_damping = 0.0;
+	real_t effective_angular_damping = 0.0;
+	Vector3 effective_total_gravity;
+	bool runtime_area_state_valid = false;
 	real_t bounce = 0.0;
 	real_t friction = 1.0;
 	real_t gravity_scale = 1.0;

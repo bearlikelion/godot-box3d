@@ -91,7 +91,7 @@ private:
 		int32_t area_shape = -1;
 	};
 
-	void _apply_area_overrides();
+	void _apply_area_overrides(const Vector3& p_default_gravity);
 
 	void _pull_body_events();
 

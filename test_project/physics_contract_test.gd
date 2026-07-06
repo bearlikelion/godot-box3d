@@ -3,6 +3,7 @@ extends SceneTree
 var failures: int = 0
 var contact_body_entered: bool = false
 var exception_body: RigidBody3D
+var damping_body: RigidBody3D
 
 
 func _initialize() -> void:
@@ -25,6 +26,11 @@ func _run() -> void:
 	for i in 180:
 		await physics_frame
 	_test_contact_and_exception_contract()
+
+	_setup_area_damping_contract()
+	for i in 90:
+		await physics_frame
+	_test_area_damping_contract()
 
 	if failures == 0:
 		print("RESULT: PASS - physics contract checks passed")
@@ -163,3 +169,33 @@ func _on_contact_body_entered(body: Node) -> void:
 func _test_contact_and_exception_contract() -> void:
 	_assert_result(contact_body_entered, "RigidBody3D contact monitor reports body_entered")
 	_assert_result(exception_body.global_position.y < -1.0, "collision exceptions let a body pass through an excepted platform")
+
+
+func _setup_area_damping_contract() -> void:
+	var area: Area3D = Area3D.new()
+	area.name = "DampingArea"
+	area.set_gravity_space_override_mode(Area3D.SPACE_OVERRIDE_DISABLED)
+	area.set_linear_damp_space_override_mode(Area3D.SPACE_OVERRIDE_REPLACE)
+	area.set_angular_damp_space_override_mode(Area3D.SPACE_OVERRIDE_REPLACE)
+	area.linear_damp = 8.0
+	area.angular_damp = 8.0
+	area.add_child(_make_box_shape(Vector3(6, 6, 6)))
+	root.add_child(area)
+
+	damping_body = RigidBody3D.new()
+	damping_body.name = "DampingBody"
+	damping_body.gravity_scale = 0.0
+	damping_body.linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	damping_body.angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	damping_body.linear_damp = 0.0
+	damping_body.angular_damp = 0.0
+	damping_body.can_sleep = false
+	damping_body.linear_velocity = Vector3(10, 0, 0)
+	damping_body.angular_velocity = Vector3(0, 0, 10)
+	damping_body.add_child(_make_sphere_shape(0.4))
+	root.add_child(damping_body)
+
+
+func _test_area_damping_contract() -> void:
+	_assert_result(damping_body.linear_velocity.length() < 4.0, "Area3D linear damping override slows a body with zero body damping")
+	_assert_result(damping_body.angular_velocity.length() < 4.0, "Area3D angular damping override slows a body with zero body damping")
