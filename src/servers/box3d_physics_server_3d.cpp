@@ -25,6 +25,13 @@
 
 Box3DPhysicsServer3D* Box3DPhysicsServer3D::singleton = nullptr;
 
+namespace {
+
+constexpr const char* BOX3D_SOFT_BODY_UNSUPPORTED_MESSAGE =
+		"Box3D: SoftBody3D is not supported in this version of the Box3D extension.";
+
+}
+
 Box3DPhysicsServer3D::Box3DPhysicsServer3D() {
 	singleton = this;
 }
@@ -1081,122 +1088,159 @@ bool Box3DPhysicsServer3D::_joint_is_disabled_collisions_between_bodies(const RI
 
 // --- Soft bodies (non-goal) ---
 
+#define BOX3D_WARN_UNSUPPORTED_SOFT_BODY() WARN_PRINT_ONCE(BOX3D_SOFT_BODY_UNSUPPORTED_MESSAGE)
+
 RID Box3DPhysicsServer3D::_soft_body_create() {
-	ERR_FAIL_V_MSG(RID(), "Box3D: SoftBody3D is not supported in this version of the Box3D extension.");
+	ERR_FAIL_V_MSG(RID(), BOX3D_SOFT_BODY_UNSUPPORTED_MESSAGE);
 }
 
 void Box3DPhysicsServer3D::_soft_body_update_rendering_server(const RID& p_body, PhysicsServer3DRenderingServerHandler* p_rendering_server_handler) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 void Box3DPhysicsServer3D::_soft_body_set_space(const RID& p_body, const RID& p_space) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 RID Box3DPhysicsServer3D::_soft_body_get_space(const RID& p_body) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return RID();
 }
 
 void Box3DPhysicsServer3D::_soft_body_set_ray_pickable(const RID& p_body, bool p_enable) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 void Box3DPhysicsServer3D::_soft_body_set_collision_layer(const RID& p_body, uint32_t p_layer) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 uint32_t Box3DPhysicsServer3D::_soft_body_get_collision_layer(const RID& p_body) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return 0;
 }
 
 void Box3DPhysicsServer3D::_soft_body_set_collision_mask(const RID& p_body, uint32_t p_mask) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 uint32_t Box3DPhysicsServer3D::_soft_body_get_collision_mask(const RID& p_body) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return 0;
 }
 
 void Box3DPhysicsServer3D::_soft_body_add_collision_exception(const RID& p_body, const RID& p_excepted_body) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 void Box3DPhysicsServer3D::_soft_body_remove_collision_exception(const RID& p_body, const RID& p_excepted_body) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 TypedArray<RID> Box3DPhysicsServer3D::_soft_body_get_collision_exceptions(const RID& p_body) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return TypedArray<RID>();
 }
 
 void Box3DPhysicsServer3D::_soft_body_set_state(const RID& p_body, PhysicsServer3D::BodyState p_state, const Variant& p_variant) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 Variant Box3DPhysicsServer3D::_soft_body_get_state(const RID& p_body, PhysicsServer3D::BodyState p_state) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return Variant();
 }
 
 void Box3DPhysicsServer3D::_soft_body_set_transform(const RID& p_body, const Transform3D& p_transform) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 void Box3DPhysicsServer3D::_soft_body_set_simulation_precision(const RID& p_body, int32_t p_simulation_precision) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 int32_t Box3DPhysicsServer3D::_soft_body_get_simulation_precision(const RID& p_body) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return 0;
 }
 
 void Box3DPhysicsServer3D::_soft_body_set_total_mass(const RID& p_body, double p_total_mass) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 double Box3DPhysicsServer3D::_soft_body_get_total_mass(const RID& p_body) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return 0.0;
 }
 
 void Box3DPhysicsServer3D::_soft_body_set_linear_stiffness(const RID& p_body, double p_stiffness) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 double Box3DPhysicsServer3D::_soft_body_get_linear_stiffness(const RID& p_body) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return 0.0;
 }
 
 void Box3DPhysicsServer3D::_soft_body_set_pressure_coefficient(const RID& p_body, double p_pressure_coefficient) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 double Box3DPhysicsServer3D::_soft_body_get_pressure_coefficient(const RID& p_body) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return 0.0;
 }
 
 void Box3DPhysicsServer3D::_soft_body_set_damping_coefficient(const RID& p_body, double p_damping_coefficient) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 double Box3DPhysicsServer3D::_soft_body_get_damping_coefficient(const RID& p_body) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return 0.0;
 }
 
 void Box3DPhysicsServer3D::_soft_body_set_drag_coefficient(const RID& p_body, double p_drag_coefficient) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 double Box3DPhysicsServer3D::_soft_body_get_drag_coefficient(const RID& p_body) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return 0.0;
 }
 
 void Box3DPhysicsServer3D::_soft_body_set_mesh(const RID& p_body, const RID& p_mesh) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 AABB Box3DPhysicsServer3D::_soft_body_get_bounds(const RID& p_body) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return AABB();
 }
 
 void Box3DPhysicsServer3D::_soft_body_move_point(const RID& p_body, int32_t p_point_index, const Vector3& p_global_position) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 Vector3 Box3DPhysicsServer3D::_soft_body_get_point_global_position(const RID& p_body, int32_t p_point_index) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return Vector3();
 }
 
 void Box3DPhysicsServer3D::_soft_body_remove_all_pinned_points(const RID& p_body) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 void Box3DPhysicsServer3D::_soft_body_pin_point(const RID& p_body, int32_t p_point_index, bool p_pin) {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 }
 
 bool Box3DPhysicsServer3D::_soft_body_is_point_pinned(const RID& p_body, int32_t p_point_index) const {
+	BOX3D_WARN_UNSUPPORTED_SOFT_BODY();
 	return false;
 }
+
+#undef BOX3D_WARN_UNSUPPORTED_SOFT_BODY
 
 // --- Lifecycle ---
 

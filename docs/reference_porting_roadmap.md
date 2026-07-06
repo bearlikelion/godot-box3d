@@ -25,10 +25,10 @@ This tracks features reviewed from `temp/` reference projects that are useful bu
 - Return `collide_shape()` contact point pairs for convex Box3D overlaps, with conservative AABB fallback pairs for non-convex world shapes.
 - Honor `PhysicsShapeQueryParameters3D.exclude` through the extension query-exclusion hook in direct-space callbacks.
 - Add focused headless Godot integration coverage for contact callbacks, collision exceptions, cylinder queries, query exclusions, `collide_shape()` pairs, and multi-shape motion.
+- Report all `SoftBody3D` server APIs as explicitly unsupported while keeping the methods inert and returning safe defaults.
 
 ## P2 - Larger follow-up projects
 
 - Add recording/replay or timewarp tooling on top of Box3D snapshots only after deterministic state ownership is documented.
-- Revisit soft-body API stubs as explicit unsupported capability reporting unless a real Box3D-backed implementation is planned.
 - Add editor/debug visual overlays for contact normals, active islands, broadphase pairs, and sleeping state.
 - Consider a generic shape-hull factory to share polygonal approximation code if more analytic shapes are added.
