@@ -1,0 +1,46 @@
+name: Headless Godot Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  headless-tests:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      GODOT_VERSION: 4.3-stable
+      GODOT_ZIP_NAME: Godot_v4.3-stable_linux.x86_64
+      GODOT_BIN: godot
+      JOBS: 4
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake curl git unzip
+
+      - name: Install Godot
+        run: |
+          mkdir -p "$HOME/.local/bin" "$RUNNER_TEMP/godot"
+          curl -L --fail --retry 3 \
+            -o "$RUNNER_TEMP/${GODOT_ZIP_NAME}.zip" \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/${GODOT_ZIP_NAME}.zip"
+          unzip -o "$RUNNER_TEMP/${GODOT_ZIP_NAME}.zip" -d "$RUNNER_TEMP/godot"
+          chmod +x "$RUNNER_TEMP/godot/${GODOT_ZIP_NAME}"
+          ln -sf "$RUNNER_TEMP/godot/${GODOT_ZIP_NAME}" "$HOME/.local/bin/godot"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Godot
+        run: godot --version
+
+      - name: Run headless tests
+        run: scripts/run_headless_tests.sh
