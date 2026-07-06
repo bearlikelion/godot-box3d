@@ -331,7 +331,9 @@ uint64_t Box3DPhysicsServer3D::_area_get_object_instance_id(const RID& p_area) c
 
 void Box3DPhysicsServer3D::_area_set_param(const RID& p_area, PhysicsServer3D::AreaParameter p_param, const Variant& p_value) {
 	Box3DAreaImpl3D* area = area_owner.get_or_null(p_area);
-	ERR_FAIL_NULL(area);
+	if (area == nullptr) {
+		return;
+	}
 	area->set_param(p_param, p_value);
 }
 
