@@ -15,36 +15,39 @@ set(GODOT_CPP_PREFIX "${CMAKE_BINARY_DIR}/_deps/godot-cpp")
 set(GODOT_CPP_SOURCE_DIR "${GODOT_CPP_PREFIX}/src/godot-cpp")
 set(GODOT_CPP_BINARY_DIR "${GODOT_CPP_PREFIX}/src/godot-cpp-build")
 
-# godot-cpp's own build only distinguishes Debug from non-Debug via `CMAKE_BUILD_TYPE`, so
-# for single-config generators (Ninja/Makefiles) we simply forward our own build type; for
-# multi-config generators the external project always builds in Debug and Release side by
-# side isn't necessary for a GDExtension consumed by a single active configuration, so we
-# forward $<CONFIG> at build time.
+# godot-cpp's own CMakeLists.txt names its output library
+# "godot-cpp.<system_name>.<build_type>.<bits>" (see its OUTPUT_NAME logic) and derives
+# <build_type> from CMAKE_BUILD_TYPE -- defaulting it to Debug when empty, even under
+# multi-config generators that otherwise ignore CMAKE_BUILD_TYPE. So the variable must
+# always be passed explicitly or the library name won't match what we import below.
+# The library is placed under <binary_dir>/bin; multi-config generators additionally
+# append a per-config subdirectory (bin/Debug, bin/Release, ...) because godot-cpp sets
+# ARCHIVE_OUTPUT_DIRECTORY without a generator expression to suppress it.
+string(TOLOWER "${CMAKE_SYSTEM_NAME}" GODOT_CPP_SYSTEM_NAME_LOWER)
+math(EXPR GODOT_CPP_BITS "${CMAKE_SIZEOF_VOID_P} * 8")
+
 if(CMAKE_CONFIGURATION_TYPES)
-	set(GODOT_CPP_BUILD_TYPE_ARG "")
+	# Multi-config generators (Visual Studio, Xcode, Ninja Multi-Config): forward the
+	# active configuration to the external project's configure and build steps at build
+	# time, and point each imported configuration at its per-config library below.
+	set(GODOT_CPP_BUILD_TYPE_ARG "-DCMAKE_BUILD_TYPE=$<CONFIG>")
 	set(GODOT_CPP_BUILD_CONFIG_ARG --config $<CONFIG>)
+	set(GODOT_CPP_LIB_PATH
+		"${GODOT_CPP_BINARY_DIR}/bin/$<CONFIG>/${CMAKE_STATIC_LIBRARY_PREFIX}godot-cpp.${GODOT_CPP_SYSTEM_NAME_LOWER}.$<LOWER_CASE:$<CONFIG>>.${GODOT_CPP_BITS}${CMAKE_STATIC_LIBRARY_SUFFIX}"
+	)
 else()
 	if(NOT CMAKE_BUILD_TYPE)
 		set(GODOT_CPP_EFFECTIVE_BUILD_TYPE "Release")
 	else()
 		set(GODOT_CPP_EFFECTIVE_BUILD_TYPE "${CMAKE_BUILD_TYPE}")
 	endif()
+	string(TOLOWER "${GODOT_CPP_EFFECTIVE_BUILD_TYPE}" GODOT_CPP_BUILD_TYPE_LOWER)
 	set(GODOT_CPP_BUILD_TYPE_ARG "-DCMAKE_BUILD_TYPE=${GODOT_CPP_EFFECTIVE_BUILD_TYPE}")
 	set(GODOT_CPP_BUILD_CONFIG_ARG "")
+	set(GODOT_CPP_LIB_PATH
+		"${GODOT_CPP_BINARY_DIR}/bin/${CMAKE_STATIC_LIBRARY_PREFIX}godot-cpp.${GODOT_CPP_SYSTEM_NAME_LOWER}.${GODOT_CPP_BUILD_TYPE_LOWER}.${GODOT_CPP_BITS}${CMAKE_STATIC_LIBRARY_SUFFIX}"
+	)
 endif()
-
-# godot-cpp's own CMakeLists.txt names its output library
-# "godot-cpp.<system_name>.<build_type>.<bits>" (see its OUTPUT_NAME logic), placed under
-# <binary_dir>/bin -- not a plain "libgodot-cpp.a" at the binary dir root. Mirror that
-# naming exactly rather than guessing a fixed name.
-string(TOLOWER "${CMAKE_SYSTEM_NAME}" GODOT_CPP_SYSTEM_NAME_LOWER)
-string(TOLOWER "${GODOT_CPP_EFFECTIVE_BUILD_TYPE}" GODOT_CPP_BUILD_TYPE_LOWER)
-math(EXPR GODOT_CPP_BITS "${CMAKE_SIZEOF_VOID_P} * 8")
-
-set(GODOT_CPP_LIB_NAME
-	"${CMAKE_STATIC_LIBRARY_PREFIX}godot-cpp.${GODOT_CPP_SYSTEM_NAME_LOWER}.${GODOT_CPP_BUILD_TYPE_LOWER}.${GODOT_CPP_BITS}${CMAKE_STATIC_LIBRARY_SUFFIX}"
-)
-set(GODOT_CPP_LIB_PATH "${GODOT_CPP_BINARY_DIR}/bin/${GODOT_CPP_LIB_NAME}")
 
 ExternalProject_Add(godot-cpp-external
 	PREFIX "${GODOT_CPP_PREFIX}"
@@ -72,8 +75,22 @@ file(MAKE_DIRECTORY "${GODOT_CPP_BINARY_DIR}/gen/include")
 add_library(godot-cpp STATIC IMPORTED GLOBAL)
 add_dependencies(godot-cpp godot-cpp-external)
 
+if(CMAKE_CONFIGURATION_TYPES)
+	foreach(GODOT_CPP_CONFIG IN LISTS CMAKE_CONFIGURATION_TYPES)
+		string(TOUPPER "${GODOT_CPP_CONFIG}" GODOT_CPP_CONFIG_UPPER)
+		string(TOLOWER "${GODOT_CPP_CONFIG}" GODOT_CPP_CONFIG_LOWER)
+		set_target_properties(godot-cpp PROPERTIES
+			IMPORTED_LOCATION_${GODOT_CPP_CONFIG_UPPER}
+			"${GODOT_CPP_BINARY_DIR}/bin/${GODOT_CPP_CONFIG}/${CMAKE_STATIC_LIBRARY_PREFIX}godot-cpp.${GODOT_CPP_SYSTEM_NAME_LOWER}.${GODOT_CPP_CONFIG_LOWER}.${GODOT_CPP_BITS}${CMAKE_STATIC_LIBRARY_SUFFIX}"
+		)
+	endforeach()
+else()
+	set_target_properties(godot-cpp PROPERTIES
+		IMPORTED_LOCATION "${GODOT_CPP_LIB_PATH}"
+	)
+endif()
+
 set_target_properties(godot-cpp PROPERTIES
-	IMPORTED_LOCATION "${GODOT_CPP_LIB_PATH}"
 	INTERFACE_INCLUDE_DIRECTORIES
 		"${GODOT_CPP_SOURCE_DIR}/include;${GODOT_CPP_SOURCE_DIR}/gdextension;${GODOT_CPP_BINARY_DIR}/gen/include"
 )

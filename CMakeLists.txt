@@ -43,14 +43,24 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 	target_compile_options(godot-box3d PRIVATE -Wall)
 endif()
 
+# The .gdextension expects "godot-box3d.dll" on Windows but "libgodot-box3d.so/.dylib"
+# elsewhere, so the prefix is per-platform rather than a blanket "lib".
+if(WIN32)
+	set(GODOT_BOX3D_LIB_PREFIX "")
+else()
+	set(GODOT_BOX3D_LIB_PREFIX "lib")
+endif()
+
 set_target_properties(godot-box3d PROPERTIES
-	PREFIX "lib"
+	PREFIX "${GODOT_BOX3D_LIB_PREFIX}"
 	OUTPUT_NAME "godot-box3d"
 	POSITION_INDEPENDENT_CODE ON
 )
 
-# Place the built extension where the .gdextension template expects it during local testing.
+# Place the built extension where the .gdextension template expects it during local
+# testing. The $<1:...> wrapper stops multi-config generators (Visual Studio, Xcode)
+# from appending a Debug/Release subdirectory the .gdextension wouldn't look in.
 set_target_properties(godot-box3d PROPERTIES
-	LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin"
-	RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin"
+	LIBRARY_OUTPUT_DIRECTORY "$<1:${CMAKE_CURRENT_SOURCE_DIR}/bin>"
+	RUNTIME_OUTPUT_DIRECTORY "$<1:${CMAKE_CURRENT_SOURCE_DIR}/bin>"
 )
