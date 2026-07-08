@@ -1,0 +1,1030 @@
+
+#================================================================================
+# area_test.gd (gd)
+#================================================================================
+
+extends SceneTree
+
+var frames: int = 0
+var body: RigidBody3D
+var area: Area3D
+var entered: bool = false
+var exited: bool = false
+
+func _on_body_entered(b: Node3D) -> void:
+	entered = true
+	print("Area entered by: ", b.name)
+
+func _on_body_exited(b: Node3D) -> void:
+	exited = true
+	print("Area exited by: ", b.name)
+
+func _initialize() -> void:
+	area = Area3D.new()
+	area.name = "TestArea"
+	var area_shape: CollisionShape3D = CollisionShape3D.new()
+	var area_box: BoxShape3D = BoxShape3D.new()
+	area_box.size = Vector3(4, 4, 4)
+	area_shape.shape = area_box
+	area.add_child(area_shape)
+	area.position = Vector3(0, 0, 0)
+	area.body_entered.connect(_on_body_entered)
+	area.body_exited.connect(_on_body_exited)
+	root.add_child(area)
+
+	body = RigidBody3D.new()
+	body.name = "FallingBody"
+	body.gravity_scale = 0.0
+	var body_shape: CollisionShape3D = CollisionShape3D.new()
+	var sphere: SphereShape3D = SphereShape3D.new()
+	sphere.radius = 0.3
+	body_shape.shape = sphere
+	body.add_child(body_shape)
+	body.position = Vector3(0, 10, 0)
+	body.linear_velocity = Vector3(0, -5, 0)
+	root.add_child(body)
+
+
+func _process(delta: float) -> bool:
+	frames += 1
+	if frames == 600:
+		print("Entered: ", entered, " Exited: ", exited)
+		if entered and exited:
+			print("RESULT: PASS - area entered and exited signals fired")
+		else:
+			print("RESULT: FAIL - area monitoring signals did not fire as expected")
+		quit()
+	return false
+
+
+#================================================================================
+# bridge_test.gd (gd)
+#================================================================================
+
+extends SceneTree
+## Headless bridge test for the overlay's new components. Run from test_project/ with:
+##   godot --headless --script bridge_test.gd
+## Exercises, from the Godot side: per-pair collision exceptions on kinematic bodies
+## (move_and_slide passes through excepted squad-mates), cylinder shape approximation,
+## cone-twist joints, and the Box3DRecording singleton's record/save/validate loop.
+
+var frames: int = 0
+var failures: int = 0
+
+var mover: CharacterBody3D
+var blocker: CharacterBody3D
+var cylinder_body: RigidBody3D
+var swing_body: RigidBody3D
+var recording_started: bool = false
+
+
+func _check(cond: bool, msg: String) -> void:
+	if cond:
+		print("ok:   ", msg)
+	else:
+		print("FAIL: ", msg)
+		failures += 1
+
+
+func _initialize() -> void:
+	# Ground plate.
+	var ground := StaticBody3D.new()
+	var ground_shape := CollisionShape3D.new()
+	var plate := BoxShape3D.new()
+	plate.size = Vector3(40, 1, 40)
+	ground_shape.shape = plate
+	ground.add_child(ground_shape)
+	ground.position = Vector3(0, -0.5, 0)
+	root.add_child(ground)
+
+	# --- Pair exceptions on kinematic characters (the minion-squad case) ---
+	mover = _make_character(Vector3(0, 0.51, 0))
+	blocker = _make_character(Vector3(2.0, 0.51, 0))
+	root.add_child(mover)
+	root.add_child(blocker)
+	mover.add_collision_exception_with(blocker)
+	blocker.add_collision_exception_with(mover)
+
+	# --- Cylinder shape approximation ---
+	cylinder_body = RigidBody3D.new()
+	var cyl_shape := CollisionShape3D.new()
+	var cyl := CylinderShape3D.new()
+	cyl.radius = 0.5
+	cyl.height = 1.0
+	cyl_shape.shape = cyl
+	cylinder_body.add_child(cyl_shape)
+	cylinder_body.position = Vector3(8, 3, 0)
+	root.add_child(cylinder_body)
+
+	# --- Cone-twist joint: swinging limb under a static anchor ---
+	var anchor := StaticBody3D.new()
+	var anchor_shape := CollisionShape3D.new()
+	var anchor_sphere := SphereShape3D.new()
+	anchor_sphere.radius = 0.1
+	anchor_shape.shape = anchor_sphere
+	anchor.add_child(anchor_shape)
+	anchor.position = Vector3(-8, 6, 0)
+	root.add_child(anchor)
+
+	swing_body = RigidBody3D.new()
+	var swing_shape := CollisionShape3D.new()
+	var swing_sphere := SphereShape3D.new()
+	swing_sphere.radius = 0.25
+	swing_shape.shape = swing_sphere
+	swing_body.add_child(swing_shape)
+	swing_body.position = Vector3(-8, 4.5, 0)
+	root.add_child(swing_body)
+
+	var cone := ConeTwistJoint3D.new()
+	cone.name = "ConeTwist"
+	cone.position = Vector3(-8, 6, 0)
+	cone.swing_span = deg_to_rad(30.0)
+	cone.twist_span = deg_to_rad(90.0)
+	# Wire node paths BEFORE entering the tree (relative paths to future siblings):
+	# the joint then configures exactly once in _ready with both bodies resolved.
+	anchor.name = "ConeAnchor"
+	swing_body.name = "ConeLimb"
+	cone.node_a = NodePath("../ConeAnchor")
+	cone.node_b = NodePath("../ConeLimb")
+	root.add_child(cone)
+
+	# --- Recording singleton ---
+	_check(Engine.has_singleton("Box3DRecording"), "Box3DRecording engine singleton is registered")
+	if Engine.has_singleton("Box3DRecording"):
+		var rec := Engine.get_singleton("Box3DRecording")
+		recording_started = rec.call("start", root.get_world_3d().space, 0)
+		_check(recording_started, "recording starts on the live space")
+		_check(rec.call("is_recording"), "is_recording reports active")
+
+
+func _make_character(pos: Vector3) -> CharacterBody3D:
+	var character := CharacterBody3D.new()
+	var shape := CollisionShape3D.new()
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.4
+	capsule.height = 1.0
+	shape.shape = capsule
+	character.add_child(shape)
+	character.position = pos
+	return character
+
+
+func _physics_process(_delta: float) -> bool:
+	frames += 1
+
+	# Drive the mover straight through the excepted blocker for the first second.
+	if frames <= 60:
+		mover.velocity = Vector3(4.0, 0, 0)
+		mover.move_and_slide()
+
+	if frames == 90:
+		# 4 m/s for 1 s from x=0 through a blocker at x=2: without the exception the
+		# mover stops at ~1.2; with it honored the mover ends near x=4.
+		_check(mover.position.x > 3.0, "move_and_slide passes through an excepted kinematic body (x=%.2f)" % mover.position.x)
+		var exceptions: Array = mover.get_collision_exceptions()
+		_check(exceptions.size() == 1 and exceptions[0] == blocker, "get_collision_exceptions round-trips the excepted body")
+
+		_check(cylinder_body.position.y > 0.4 and cylinder_body.position.y < 0.7,
+				"cylinder body rests on the ground via its convex approximation (y=%.2f)" % cylinder_body.position.y)
+
+		var offset: Vector3 = swing_body.position - Vector3(-8, 6, 0)
+		_check(offset.length() > 1.2 and offset.length() < 1.8,
+				"cone-twist limb stays on its 1.5m tether (r=%.2f)" % offset.length())
+		var vertical: Vector3 = Vector3(-8, 4.5, 0) - Vector3(-8, 6, 0)
+		var swing_angle: float = rad_to_deg(offset.angle_to(vertical))
+		_check(swing_angle < 35.0, "cone limit holds the swing near its 30-degree span (%.1f deg)" % swing_angle)
+
+	if frames == 120 and recording_started:
+		var rec := Engine.get_singleton("Box3DRecording")
+		rec.call("stop")
+		_check(not rec.call("is_recording"), "stop() ends the session")
+		var path := "user://bridge_test.b3rec"
+		_check(rec.call("save", path), "recording saves to user://")
+		_check(rec.call("validate_file", path, 1), "validate_file reproduces the recorded session")
+		_check(not rec.call("replay_file_diverged", path, 1), "replay_file_diverged reports no divergence")
+
+	if frames >= 130:
+		print("")
+		if failures == 0:
+			print("BRIDGE TEST PASSED")
+		else:
+			print("BRIDGE TEST FAILED (%d failure%s)" % [failures, "" if failures == 1 else "s"])
+		quit(0 if failures == 0 else 1)
+		return true
+
+	return false
+
+
+#================================================================================
+# crowd_bench.gd (gd)
+#================================================================================
+
+extends SceneTree
+## Crowd clash benchmark: two waves of 36 capsule characters walk into each
+## other on a trimesh floor (worst-case non-excepted contact). Measures
+## physics-step cost and vertical "climbing" (units popping onto each other).
+
+var frames := 0
+var units: Array[CharacterBody3D] = []
+var phys_ms: Array[float] = []
+var prev_pos: Dictionary = {}
+var prev_delta: Dictionary = {}
+var reversals := 0
+var samples := 0
+
+func _mk_unit(pos: Vector3, dir: float) -> CharacterBody3D:
+	var c := CharacterBody3D.new()
+	var cs := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new(); cap.radius = 0.4; cap.height = 1.6; cs.shape = cap
+	c.add_child(cs); c.position = pos
+	c.set_meta("dir", dir)
+	root.add_child(c)
+	return c
+
+func _initialize() -> void:
+	var g := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var tri := ConcavePolygonShape3D.new()
+	var s := 60.0
+	tri.set_faces(PackedVector3Array([
+		Vector3(-s,0,-s), Vector3(s,0,-s), Vector3(s,0,s),
+		Vector3(-s,0,-s), Vector3(s,0,s), Vector3(-s,0,s)]))
+	cs.shape = tri; g.add_child(cs); root.add_child(g)
+	# Converging swarm: every unit steers toward the origin (a shared attack
+	# target), the pressure pattern real minion waves produce at towers/chokes.
+	for i in 72:
+		var ang := TAU * i / 72.0
+		var r := 8.0 + (i % 3) * 2.0
+		units.append(_mk_unit(Vector3(cos(ang) * r, 0.81, sin(ang) * r), 0.0))
+
+func _physics_process(delta: float) -> bool:
+	frames += 1
+	var t0 := Time.get_ticks_usec()
+	for c in units:
+		c.velocity.y -= 9.8 * delta
+		var to_center := -c.position
+		to_center.y = 0.0
+		var planar := to_center.normalized() * 3.0
+		c.velocity.x = planar.x
+		c.velocity.z = planar.z
+		c.move_and_slide()
+		if c.is_on_floor(): c.velocity.y = 0.0
+	var ms := (Time.get_ticks_usec() - t0) / 1000.0
+	if frames > 100: phys_ms.append(ms)  # clash window only
+	if frames > 150:
+		for c in units:
+			var p := Vector3(c.position.x, 0, c.position.z)
+			if prev_pos.has(c):
+				var d: Vector3 = p - prev_pos[c]
+				if prev_delta.has(c):
+					samples += 1
+					if d.dot(prev_delta[c]) < 0.0 and d.length() > 0.02 and prev_delta[c].length() > 0.02:
+						reversals += 1  # VISIBLE reversal: >2cm both frames
+				prev_delta[c] = d
+			prev_pos[c] = p
+	if frames == 150 or frames == 250 or frames == 400:
+		var max_y := 0.0; var climbers := 0
+		for c in units:
+			max_y = maxf(max_y, c.position.y)
+			if c.position.y > 1.1: climbers += 1
+		print("f%d  max_y=%.2f climbers=%d" % [frames, max_y, climbers])
+	if frames >= 400:
+		phys_ms.sort()
+		var total := 0.0
+		for v in phys_ms: total += v
+		print("visible oscillation (>2cm reversals): %.2f%% of unit-frames" % (100.0 * reversals / maxf(samples, 1)))
+		print("clash motion cost: avg=%.2fms  p95=%.2fms  max=%.2fms  (72 units)" % [
+			total / phys_ms.size(), phys_ms[int(phys_ms.size() * 0.95)], phys_ms[-1]])
+		var visible_pct := 100.0 * reversals / maxf(samples, 1)
+		var ok := visible_pct < 2.0
+		print("CROWD BENCH " + ("PASSED" if ok else "FAILED (visible oscillation %.1f%%)" % visible_pct))
+		quit(0 if ok else 1)
+		return true
+	return false
+
+
+#================================================================================
+# csg_test.gd (gd)
+#================================================================================
+
+extends SceneTree
+## CSG level-geometry regression: the exact server-call flow game levels use
+## (attach empty concave shape, set_faces after; Godot clockwise winding).
+
+var frames := 0
+var failed := 0
+var c: CharacterBody3D
+var r: RigidBody3D
+
+func _check(cond: bool, msg: String) -> void:
+	print(("ok:   " if cond else "FAIL: ") + msg)
+	if not cond: failed += 1
+
+func _initialize() -> void:
+	var csg := CSGBox3D.new()
+	csg.size = Vector3(20, 1, 20)
+	csg.position = Vector3(0, -0.5, 0)
+	csg.use_collision = true
+	root.add_child(csg)
+	c = CharacterBody3D.new()
+	var cs := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new(); cap.radius = 0.4; cap.height = 1.6; cs.shape = cap
+	c.add_child(cs); c.position = Vector3(0, 0.81, 0)
+	root.add_child(c)
+	r = RigidBody3D.new()
+	var rcs := CollisionShape3D.new()
+	var s := SphereShape3D.new(); s.radius = 0.5; rcs.shape = s
+	r.add_child(rcs); r.position = Vector3(3, 2, 0)
+	root.add_child(r)
+
+func _physics_process(delta: float) -> bool:
+	frames += 1
+	c.velocity.y -= 9.8 * delta
+	c.move_and_slide()
+	if c.is_on_floor(): c.velocity.y = 0.0
+	if frames == 90:
+		_check(c.is_on_floor() and c.position.y > 0.5,
+				"character stands on CSG floor (y=%.2f)" % c.position.y)
+		_check(r.position.y > 0.3 and r.position.y < 0.7,
+				"rigid sphere rests on CSG floor (y=%.2f)" % r.position.y)
+		var ray := PhysicsRayQueryParameters3D.create(Vector3(1, 5, 1), Vector3(1, -5, 1), 0xFFFFFFFF)
+		var hit := root.get_world_3d().direct_space_state.intersect_ray(ray)
+		_check(not hit.is_empty() and absf(hit["position"].y) < 0.05,
+				"downward ray hits CSG top face at y=0 (got %s)" % [hit.get("position")])
+		_check(not hit.is_empty() and hit["normal"].y > 0.9,
+				"CSG floor ray normal points up (got %s)" % [hit.get("normal")])
+		print("CSG TEST " + ("PASSED" if failed == 0 else "FAILED (%d)" % failed))
+		quit(0 if failed == 0 else 1)
+		return true
+	return false
+
+
+#================================================================================
+# demo_scene.gd (gd)
+#================================================================================
+
+class_name Box3DDemoScene
+extends Node3D
+
+var _door: RigidBody3D
+var _door_swung: bool = false
+var _test_dropdown: OptionButton
+
+func _ready() -> void:
+	print("Active physics engine setting: ", ProjectSettings.get_setting("physics/3d/physics_engine"))
+	_add_camera()
+	_add_light()
+	_add_ground()
+	_add_falling_bodies()
+	_add_monitored_area()
+	_add_hinge_door()
+	_add_ui()
+
+func _add_ui() -> void:
+	var canvas_layer := CanvasLayer.new()
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_top", 20)
+	margin.add_theme_constant_override("margin_left", 20)
+	
+	var hbox := HBoxContainer.new()
+	_test_dropdown = OptionButton.new()
+	_test_dropdown.custom_minimum_size = Vector2(200, 0)
+	
+	var run_button := Button.new()
+	run_button.text = "Run Standalone Test"
+	run_button.pressed.connect(_on_run_pressed)
+	
+	hbox.add_child(_test_dropdown)
+	hbox.add_child(run_button)
+	margin.add_child(hbox)
+	canvas_layer.add_child(margin)
+	add_child(canvas_layer)
+	
+	_populate_tests()
+
+func _populate_tests() -> void:
+	var dir := DirAccess.open("res://")
+	if dir:
+		dir.list_dir_begin()
+		var file_name := dir.get_next()
+		while file_name != "":
+			if not dir.current_is_dir() and file_name.ends_with(".gd") and file_name != "demo_scene.gd":
+				_test_dropdown.add_item(file_name)
+			file_name = dir.get_next()
+
+func _on_run_pressed() -> void:
+	if _test_dropdown.item_count == 0:
+		return
+	var selected_file := _test_dropdown.get_item_text(_test_dropdown.selected)
+	var executable_path := OS.get_executable_path()
+	var args := PackedStringArray(["-s", "res://" + selected_file])
+	OS.create_process(executable_path, args)
+
+func _add_camera() -> void:
+	var camera: Camera3D = Camera3D.new()
+	camera.position = Vector3(0, 8, 16)
+	camera.rotation_degrees = Vector3(-20, 0, 0)
+	add_child(camera)
+
+func _add_light() -> void:
+	var light: DirectionalLight3D = DirectionalLight3D.new()
+	light.rotation_degrees = Vector3(-50, -30, 0)
+	light.shadow_enabled = true
+	add_child(light)
+
+func _add_ground() -> void:
+	var ground: StaticBody3D = StaticBody3D.new()
+	ground.name = "Ground"
+	ground.position = Vector3(0, -0.5, 0)
+
+	var shape: BoxShape3D = BoxShape3D.new()
+	shape.size = Vector3(20, 1, 20)
+	var collision: CollisionShape3D = CollisionShape3D.new()
+	collision.shape = shape
+	ground.add_child(collision)
+
+	var mesh: MeshInstance3D = MeshInstance3D.new()
+	var box_mesh: BoxMesh = BoxMesh.new()
+	box_mesh.size = shape.size
+	mesh.mesh = box_mesh
+	ground.add_child(mesh)
+
+	add_child(ground)
+
+func _add_falling_bodies() -> void:
+	var positions: Array[Vector3] = [
+		Vector3(-4, 6, -2),
+		Vector3(-2, 8, -2),
+		Vector3(0, 10, -2),
+		Vector3(2, 8, -2),
+		Vector3(4, 6, -2),
+	]
+	for i in positions.size():
+		var use_sphere: bool = i % 2 == 0
+		var body: RigidBody3D = RigidBody3D.new()
+		body.name = "FallingBody%d" % i
+		body.position = positions[i]
+
+		var collision: CollisionShape3D = CollisionShape3D.new()
+		var mesh: MeshInstance3D = MeshInstance3D.new()
+		if use_sphere:
+			var sphere: SphereShape3D = SphereShape3D.new()
+			sphere.radius = 0.5
+			collision.shape = sphere
+			var sphere_mesh: SphereMesh = SphereMesh.new()
+			sphere_mesh.radius = 0.5
+			sphere_mesh.height = 1.0
+			mesh.mesh = sphere_mesh
+		else:
+			var box: BoxShape3D = BoxShape3D.new()
+			box.size = Vector3(0.8, 0.8, 0.8)
+			collision.shape = box
+			var box_mesh: BoxMesh = BoxMesh.new()
+			box_mesh.size = box.size
+			mesh.mesh = box_mesh
+
+		body.add_child(collision)
+		body.add_child(mesh)
+		add_child(body)
+
+func _add_monitored_area() -> void:
+	var area: Area3D = Area3D.new()
+	area.name = "TriggerArea"
+	area.position = Vector3(-4, 3, 4)
+
+	var shape: BoxShape3D = BoxShape3D.new()
+	shape.size = Vector3(3, 6, 3)
+	var collision: CollisionShape3D = CollisionShape3D.new()
+	collision.shape = shape
+	area.add_child(collision)
+
+	var mesh: MeshInstance3D = MeshInstance3D.new()
+	var box_mesh: BoxMesh = BoxMesh.new()
+	box_mesh.size = shape.size
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.albedo_color = Color(0.2, 0.6, 1.0, 0.25)
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mesh.mesh = box_mesh
+	mesh.material_override = material
+	area.add_child(mesh)
+
+	area.body_entered.connect(_on_area_body_entered)
+	area.body_exited.connect(_on_area_body_exited)
+	add_child(area)
+
+	var dropper: RigidBody3D = RigidBody3D.new()
+	dropper.name = "AreaDropper"
+	dropper.position = Vector3(-4, 12, 4)
+	var dropper_shape: CollisionShape3D = CollisionShape3D.new()
+	var dropper_sphere: SphereShape3D = SphereShape3D.new()
+	dropper_sphere.radius = 0.4
+	dropper_shape.shape = dropper_sphere
+	dropper.add_child(dropper_shape)
+	var dropper_mesh: MeshInstance3D = MeshInstance3D.new()
+	var dropper_sphere_mesh: SphereMesh = SphereMesh.new()
+	dropper_sphere_mesh.radius = 0.4
+	dropper_sphere_mesh.height = 0.8
+	dropper_mesh.mesh = dropper_sphere_mesh
+	dropper.add_child(dropper_mesh)
+	add_child(dropper)
+
+func _on_area_body_entered(body: Node3D) -> void:
+	print("[Area] entered by: ", body.name)
+
+func _on_area_body_exited(body: Node3D) -> void:
+	print("[Area] exited by: ", body.name)
+
+func _add_hinge_door() -> void:
+	var anchor: StaticBody3D = StaticBody3D.new()
+	anchor.name = "DoorAnchor"
+	anchor.position = Vector3(4, 1.5, 4)
+	var anchor_shape: CollisionShape3D = CollisionShape3D.new()
+	var anchor_box: BoxShape3D = BoxShape3D.new()
+	anchor_box.size = Vector3(0.2, 3, 0.2)
+	anchor_shape.shape = anchor_box
+	anchor.add_child(anchor_shape)
+	var anchor_mesh: MeshInstance3D = MeshInstance3D.new()
+	var anchor_box_mesh: BoxMesh = BoxMesh.new()
+	anchor_box_mesh.size = anchor_box.size
+	anchor_mesh.mesh = anchor_box_mesh
+	anchor.add_child(anchor_mesh)
+	add_child(anchor)
+
+	_door = RigidBody3D.new()
+	_door.name = "Door"
+	_door.position = Vector3(5, 1.5, 4)
+	_door.gravity_scale = 0.0
+	var door_shape: CollisionShape3D = CollisionShape3D.new()
+	var door_box: BoxShape3D = BoxShape3D.new()
+	door_box.size = Vector3(2, 3, 0.1)
+	door_shape.shape = door_box
+	_door.add_child(door_shape)
+	var door_mesh: MeshInstance3D = MeshInstance3D.new()
+	var door_box_mesh: BoxMesh = BoxMesh.new()
+	door_box_mesh.size = door_box.size
+	door_mesh.mesh = door_box_mesh
+	_door.add_child(door_mesh)
+	add_child(_door)
+
+	var hinge: HingeJoint3D = HingeJoint3D.new()
+	hinge.position = Vector3(4, 1.5, 4)
+	add_child(hinge)
+	hinge.node_a = hinge.get_path_to(anchor)
+	hinge.node_b = hinge.get_path_to(_door)
+
+func _process(_delta: float) -> void:
+	if not _door_swung and Engine.get_physics_frames() > 30:
+		_door_swung = true
+		_door.apply_torque_impulse(Vector3(0, 3.0, 0))
+
+
+#================================================================================
+# fall_test.gd (gd)
+#================================================================================
+
+extends SceneTree
+
+var frames: int = 0
+var body: RigidBody3D
+var ground: StaticBody3D
+
+func _initialize() -> void:
+	print("Active physics engine setting: ", ProjectSettings.get_setting("physics/3d/physics_engine"))
+
+	ground = StaticBody3D.new()
+	var ground_shape: CollisionShape3D = CollisionShape3D.new()
+	var box: BoxShape3D = BoxShape3D.new()
+	box.size = Vector3(10, 1, 10)
+	ground_shape.shape = box
+	ground.add_child(ground_shape)
+	ground.position = Vector3(0, -0.5, 0)
+	root.add_child(ground)
+
+	body = RigidBody3D.new()
+	var body_shape: CollisionShape3D = CollisionShape3D.new()
+	var sphere: SphereShape3D = SphereShape3D.new()
+	sphere.radius = 0.5
+	body_shape.shape = sphere
+	body.add_child(body_shape)
+	body.position = Vector3(0, 5, 0)
+	root.add_child(body)
+
+	print("Initial body Y: ", body.position.y)
+
+
+func _process(delta: float) -> bool:
+	frames += 1
+	if frames == 120:
+		print("Body Y after 120 physics frames: ", body.global_position.y)
+		print("Body linear velocity: ", body.linear_velocity)
+		if body.global_position.y < 4.0 and body.global_position.y > -5.0:
+			print("RESULT: PASS - body fell under gravity and did not tunnel through ground")
+		else:
+			print("RESULT: FAIL - body did not fall as expected")
+		quit()
+	return false
+
+
+#================================================================================
+# gravity_test.gd (gd)
+#================================================================================
+
+extends SceneTree
+## Reproduces the in-game fall-through: characters under gravity via move_and_slide,
+## standing on (a) a BoxShape ground and (b) a trimesh ground (the CSG floor case).
+
+var frames: int = 0
+var char_on_box: CharacterBody3D
+var char_on_mesh: CharacterBody3D
+
+func _make_char(pos: Vector3) -> CharacterBody3D:
+	var c := CharacterBody3D.new()
+	var cs := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.4
+	cap.height = 1.6
+	cs.shape = cap
+	c.add_child(cs)
+	c.position = pos
+	return c
+
+func _initialize() -> void:
+	var box_ground := StaticBody3D.new()
+	var bcs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(10, 1, 10)
+	bcs.shape = box
+	box_ground.add_child(bcs)
+	box_ground.position = Vector3(0, -0.5, 0)
+	root.add_child(box_ground)
+
+	# Trimesh ground quad at y=0 spanning x/z in [20-5, 20+5].
+	var mesh_ground := StaticBody3D.new()
+	var mcs := CollisionShape3D.new()
+	var tri := ConcavePolygonShape3D.new()
+	var a := Vector3(15, 0, -5); var b := Vector3(25, 0, -5)
+	var c := Vector3(25, 0, 5); var d := Vector3(15, 0, 5)
+	tri.set_faces(PackedVector3Array([a, b, c, a, c, d]))
+	mcs.shape = tri
+	mesh_ground.add_child(mcs)
+	root.add_child(mesh_ground)
+
+	# Wall at x=3 on the box ground: the walker must stop against it, not pass through.
+	var wall := StaticBody3D.new()
+	var wcs := CollisionShape3D.new()
+	var wbox := BoxShape3D.new()
+	wbox.size = Vector3(0.5, 4, 10)
+	wcs.shape = wbox
+	wall.add_child(wcs)
+	wall.position = Vector3(3.25, 2, 0)
+	root.add_child(wall)
+
+	# 20-degree trimesh ramp on the mesh ground ahead of the walker.
+	var ramp := StaticBody3D.new()
+	var rcs := CollisionShape3D.new()
+	var rtri := ConcavePolygonShape3D.new()
+	var r0 := Vector3(22, 0, -5); var r1 := Vector3(25, 1.1, -5)
+	var r2 := Vector3(25, 1.1, 5); var r3 := Vector3(22, 0, 5)
+	rtri.set_faces(PackedVector3Array([r0, r1, r2, r0, r2, r3]))
+	rcs.shape = rtri
+	ramp.add_child(rcs)
+	root.add_child(ramp)
+
+	char_on_box = _make_char(Vector3(0, 0.81, 0))   # capsule half-height above y=0
+	char_on_mesh = _make_char(Vector3(20, 0.81, 0))
+	root.add_child(char_on_box)
+	root.add_child(char_on_mesh)
+
+func _physics_process(delta: float) -> bool:
+	frames += 1
+	for c: CharacterBody3D in [char_on_box, char_on_mesh]:
+		c.velocity.y -= 9.8 * delta
+		c.velocity.x = 2.0 if frames > 30 else 0.0  # then walk while grounded
+		c.move_and_slide()
+		if c.is_on_floor():
+			c.velocity.y = 0.0
+	if frames % 30 == 0:
+		print("f%d  box: x=%.2f y=%.3f floor=%s | mesh: x=%.2f y=%.3f floor=%s" % [
+			frames, char_on_box.position.x, char_on_box.position.y, char_on_box.is_on_floor(),
+			char_on_mesh.position.x, char_on_mesh.position.y, char_on_mesh.is_on_floor()])
+	if frames >= 150:
+		# Box walker: stayed grounded, walked, and stopped against the wall near x=2.6.
+		var ok_box := char_on_box.is_on_floor() and char_on_box.position.y > 0.5 \
+				and char_on_box.position.x > 2.0 and char_on_box.position.x < 3.1
+		# Mesh walker: stayed grounded and climbed the trimesh ramp (x past 22, y risen).
+		var ok_mesh := char_on_mesh.is_on_floor() and char_on_mesh.position.x > 22.5 \
+				and char_on_mesh.position.y > 0.9
+		print("RESULT box-ground+wall: ", "PASS" if ok_box else "FAIL",
+				" (x=%.2f y=%.2f)" % [char_on_box.position.x, char_on_box.position.y])
+		print("RESULT mesh-ground+ramp: ", "PASS" if ok_mesh else "FAIL",
+				" (x=%.2f y=%.2f)" % [char_on_mesh.position.x, char_on_mesh.position.y])
+		quit(0 if (ok_box and ok_mesh) else 1)
+		return true
+	return false
+
+
+#================================================================================
+# import_pipeline_test.gd (gd)
+#================================================================================
+
+extends SceneTree
+## Regression for the Blender-import level pipeline (map_import_script.gd output):
+## StaticBody3D carries the imported mesh transform INCLUDING scale/rotation,
+## trimesh collision from create_trimesh_shape at identity underneath.
+
+var frames := 0
+var failed := 0
+var c_scaled: CharacterBody3D
+var c_rot: CharacterBody3D
+var r_scaled: RigidBody3D
+
+func _check(cond: bool, msg: String) -> void:
+	print(("ok:   " if cond else "FAIL: ") + msg)
+	if not cond: failed += 1
+
+func _mk_map_piece(xf: Transform3D) -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(10, 1, 10)
+	var body := StaticBody3D.new()
+	body.transform = xf
+	var mi := MeshInstance3D.new(); mi.mesh = mesh; body.add_child(mi)
+	var cs := CollisionShape3D.new(); cs.shape = mesh.create_trimesh_shape(); body.add_child(cs)
+	root.add_child(body)
+
+func _mk_char(pos: Vector3) -> CharacterBody3D:
+	var c := CharacterBody3D.new()
+	var cs := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new(); cap.radius = 0.4; cap.height = 1.6; cs.shape = cap
+	c.add_child(cs); c.position = pos; root.add_child(c)
+	return c
+
+func _initialize() -> void:
+	# Scaled piece: 4x2x4 -> spans x[20,60], top at y=0.
+	_mk_map_piece(Transform3D(Basis.from_scale(Vector3(4, 2, 4)), Vector3(40, -1.0, 0)))
+	c_scaled = _mk_char(Vector3(52, 0.81, 0))
+	r_scaled = RigidBody3D.new()
+	var rcs := CollisionShape3D.new(); var s := SphereShape3D.new(); s.radius = 0.5; rcs.shape = s
+	r_scaled.add_child(rcs); r_scaled.position = Vector3(30, 2, 0); root.add_child(r_scaled)
+	# Rotated (45 deg yaw) + scaled piece at x=100: top at y=0.
+	var b := Basis(Vector3.UP, deg_to_rad(45.0)) * Basis.from_scale(Vector3(3, 2, 3))
+	_mk_map_piece(Transform3D(b, Vector3(100, -1.0, 0)))
+	c_rot = _mk_char(Vector3(100, 0.81, 0))
+
+func _physics_process(delta: float) -> bool:
+	frames += 1
+	for c: CharacterBody3D in [c_scaled, c_rot]:
+		c.velocity.y -= 9.8 * delta
+		c.move_and_slide()
+		if c.is_on_floor(): c.velocity.y = 0.0
+	if frames == 90:
+		_check(c_scaled.is_on_floor() and c_scaled.position.y > 0.5,
+				"character stands on SCALED imported piece (y=%.2f)" % c_scaled.position.y)
+		_check(c_rot.is_on_floor() and c_rot.position.y > 0.5,
+				"character stands on ROTATED+SCALED piece (y=%.2f)" % c_rot.position.y)
+		_check(r_scaled.position.y > 0.3 and r_scaled.position.y < 0.7,
+				"rigid sphere rests on scaled piece (y=%.2f)" % r_scaled.position.y)
+		var ray := PhysicsRayQueryParameters3D.create(Vector3(55, 5, 10), Vector3(55, -5, 10), 0xFFFFFFFF)
+		var hit := root.get_world_3d().direct_space_state.intersect_ray(ray)
+		_check(not hit.is_empty() and absf(hit["position"].y) < 0.05,
+				"ray hits scaled piece's EXTENDED footprint (x=55,z=10 outside unscaled bounds; got %s)" % [hit.get("position")])
+		print("IMPORT PIPELINE TEST " + ("PASSED" if failed == 0 else "FAILED (%d)" % failed))
+		quit(0 if failed == 0 else 1)
+		return true
+	return false
+
+
+#================================================================================
+# joint_test.gd (gd)
+#================================================================================
+
+extends SceneTree
+
+var frames: int = 0
+var anchor: StaticBody3D
+var door: RigidBody3D
+var hinge: HingeJoint3D
+
+func _initialize() -> void:
+	anchor = StaticBody3D.new()
+	var anchor_shape: CollisionShape3D = CollisionShape3D.new()
+	var anchor_box: BoxShape3D = BoxShape3D.new()
+	anchor_box.size = Vector3(0.2, 2, 0.2)
+	anchor_shape.shape = anchor_box
+	anchor.add_child(anchor_shape)
+	anchor.position = Vector3(0, 0, 0)
+	root.add_child(anchor)
+
+	door = RigidBody3D.new()
+	var door_shape: CollisionShape3D = CollisionShape3D.new()
+	var door_box: BoxShape3D = BoxShape3D.new()
+	door_box.size = Vector3(2, 2, 0.1)
+	door_shape.shape = door_box
+	door.add_child(door_shape)
+	door.position = Vector3(1, 0, 0)
+	door.gravity_scale = 0.0
+	root.add_child(door)
+
+	hinge = HingeJoint3D.new()
+	root.add_child(hinge)
+	hinge.node_a = hinge.get_path_to(anchor)
+	hinge.node_b = hinge.get_path_to(door)
+	hinge.position = Vector3(0, 0, 0)
+
+	await process_frame
+	await process_frame
+	# Apply an angular impulse to swing the door.
+	door.apply_torque_impulse(Vector3(0, 0, 3.0))
+
+
+func _process(delta: float) -> bool:
+	frames += 1
+	if frames == 60:
+		print("Door position: ", door.global_position)
+		print("Door rotation Z (deg): ", rad_to_deg(door.rotation.z))
+		var dist_from_anchor: float = door.global_position.distance_to(Vector3(0, 0, 0))
+		print("Distance from anchor: ", dist_from_anchor)
+		if abs(door.rotation.z) > 0.05 and dist_from_anchor < 1.5:
+			print("RESULT: PASS - hinge joint constrained rotation around anchor")
+		else:
+			print("RESULT: FAIL - hinge joint did not behave as expected")
+		quit()
+	return false
+
+
+#================================================================================
+# layers_test.gd (gd)
+#================================================================================
+
+extends SceneTree
+## Validates Godot collision-layer semantics through the Box3D bridge:
+## one-directional queries/motion, OR-rule solver pairs, area mask rule,
+## and live layer changes reaching engine filters.
+
+var frames := 0
+var failed := 0
+var char_ok: CharacterBody3D      # mask=1 on layer=1/mask=0 ground -> stands
+var char_wrong: CharacterBody3D   # mask=2 on layer=1 ground -> falls (by design)
+var rigid_scans: RigidBody3D      # layer=4 mask=1 -> rests on mask-0 ground (OR rule)
+var rigid_a: RigidBody3D          # layer=2 mask=8 -> rests ON static blocker layer=8 mask=0
+var ghost_a: RigidBody3D          # layer=2 mask=4 vs ghost_b: disjoint -> pass through
+var area_hits := 0
+var area_wrong_hits := 0
+var late_ground: StaticBody3D
+
+func _check(cond: bool, msg: String) -> void:
+	print(("ok:   " if cond else "FAIL: ") + msg)
+	if not cond: failed += 1
+
+func _mk_ground(pos: Vector3, size: Vector3, layer: int, mask: int) -> StaticBody3D:
+	var g := StaticBody3D.new()
+	g.collision_layer = layer
+	g.collision_mask = mask
+	var cs := CollisionShape3D.new()
+	var b := BoxShape3D.new(); b.size = size; cs.shape = b
+	g.add_child(cs); g.position = pos
+	root.add_child(g)
+	return g
+
+func _mk_char(pos: Vector3, mask: int) -> CharacterBody3D:
+	var c := CharacterBody3D.new()
+	c.collision_layer = 1; c.collision_mask = mask
+	var cs := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new(); cap.radius = 0.4; cap.height = 1.6; cs.shape = cap
+	c.add_child(cs); c.position = pos
+	root.add_child(c)
+	return c
+
+func _mk_rigid(pos: Vector3, layer: int, mask: int) -> RigidBody3D:
+	var r := RigidBody3D.new()
+	r.collision_layer = layer; r.collision_mask = mask
+	var cs := CollisionShape3D.new()
+	var s := SphereShape3D.new(); s.radius = 0.5; cs.shape = s
+	r.add_child(cs); r.position = pos
+	root.add_child(r)
+	return r
+
+func _initialize() -> void:
+	_mk_ground(Vector3(0, -0.5, 0), Vector3(60, 1, 20), 1, 0)   # world: layer=1 mask=0
+	char_ok = _mk_char(Vector3(0, 0.81, 0), 1)
+	char_wrong = _mk_char(Vector3(3, 0.81, 0), 2)
+	rigid_scans = _mk_rigid(Vector3(6, 2, 0), 4, 1)
+	# One-directional solver: A(layer=2,mask=8) onto static blocker(layer=8,mask=0) at y=2
+	_mk_ground(Vector3(9, 2, 0), Vector3(2, 0.5, 2), 8, 0)
+	rigid_a = _mk_rigid(Vector3(9, 4, 0), 2, 8)
+	# Disjoint rigids: ghost_a falls onto ghost_b; neither scans the other; both scan world(1)
+	var ghost_b := _mk_rigid(Vector3(12, 0.5, 0), 8, 16 | 1)
+	ghost_b.freeze = true
+	ghost_a = _mk_rigid(Vector3(12, 3, 0), 2, 4 | 1)
+	# Areas: right mask detects char_ok (layer=1); wrong mask must not.
+	var area_r := Area3D.new(); area_r.collision_mask = 1; area_r.monitoring = true
+	var acs := CollisionShape3D.new(); var ab := BoxShape3D.new(); ab.size = Vector3(2,4,2); acs.shape = ab
+	area_r.add_child(acs); area_r.position = Vector3(0, 1, 0); root.add_child(area_r)
+	area_r.body_entered.connect(func(_b): area_hits += 1)
+	var area_w := Area3D.new(); area_w.collision_mask = 2; area_w.monitoring = true
+	var acs2 := CollisionShape3D.new(); var ab2 := BoxShape3D.new(); ab2.size = Vector3(2,4,2); acs2.shape = ab2
+	area_w.add_child(acs2); area_w.position = Vector3(0, 1, 0); root.add_child(area_w)
+	area_w.body_entered.connect(func(_b): area_wrong_hits += 1)
+	# Late-layer ground for runtime-change test, far lane
+	late_ground = _mk_ground(Vector3(20, -0.5, 0), Vector3(4, 1, 4), 4, 0)
+
+func _physics_process(delta: float) -> bool:
+	frames += 1
+	for c: CharacterBody3D in [char_ok, char_wrong]:
+		c.velocity.y -= 9.8 * delta
+		c.move_and_slide()
+		if c.is_on_floor(): c.velocity.y = 0.0
+	if frames == 90:
+		_check(char_ok.is_on_floor() and char_ok.position.y > 0.5,
+				"character (mask=1) stands on mask-0 world geometry")
+		_check(char_wrong.position.y < -3.0,
+				"character (mask=2) falls through layer-1 ground BY DESIGN (y=%.1f)" % char_wrong.position.y)
+		_check(rigid_scans.position.y > 0.3 and rigid_scans.position.y < 0.7,
+				"rigid (mask=1) rests on mask-0 ground via OR rule (y=%.2f)" % rigid_scans.position.y)
+		_check(rigid_a.position.y > 2.5,
+				"one-directional pair: A scans B, B doesn't scan A -> still collide (y=%.2f)" % rigid_a.position.y)
+		_check(ghost_a.position.y < 1.2,
+				"disjoint rigids pass through each other, land on world (y=%.2f)" % ghost_a.position.y)
+		_check(area_hits >= 1, "area (mask=1) detected the layer-1 body")
+		_check(area_wrong_hits == 0, "area (mask=2) ignored the layer-1 body")
+		var ray := PhysicsRayQueryParameters3D.create(Vector3(20, 5, 0), Vector3(20, -1, 0), 2)
+		var hit := root.get_world_3d().direct_space_state.intersect_ray(ray)
+		_check(hit.is_empty(), "ray (mask=2) misses layer-4 ground")
+		late_ground.collision_layer = 2
+	if frames == 92:
+		var ray := PhysicsRayQueryParameters3D.create(Vector3(20, 5, 0), Vector3(20, -1, 0), 2)
+		var hit := root.get_world_3d().direct_space_state.intersect_ray(ray)
+		_check(not hit.is_empty(), "ray (mask=2) hits ground after live layer change to 2")
+		print("LAYERS TEST " + ("PASSED" if failed == 0 else "FAILED (%d)" % failed))
+		quit(0 if failed == 0 else 1)
+		return true
+	return false
+
+
+#================================================================================
+# settle_test.gd (gd)
+#================================================================================
+
+extends SceneTree
+
+var frames: int = 0
+var body: RigidBody3D
+var ground: StaticBody3D
+
+func _initialize() -> void:
+	ground = StaticBody3D.new()
+	var ground_shape: CollisionShape3D = CollisionShape3D.new()
+	var box: BoxShape3D = BoxShape3D.new()
+	box.size = Vector3(10, 1, 10)
+	ground_shape.shape = box
+	ground.add_child(ground_shape)
+	ground.position = Vector3(0, -0.5, 0)
+	root.add_child(ground)
+
+	body = RigidBody3D.new()
+	var body_shape: CollisionShape3D = CollisionShape3D.new()
+	var sphere: SphereShape3D = SphereShape3D.new()
+	sphere.radius = 0.5
+	body_shape.shape = sphere
+	body.add_child(body_shape)
+	body.position = Vector3(0, 2, 0)
+	root.add_child(body)
+
+
+func _process(delta: float) -> bool:
+	frames += 1
+	if frames == 300:
+		print("Body Y after 300 frames (5s): ", body.global_position.y)
+		print("Body linear velocity: ", body.linear_velocity)
+		if body.global_position.y > 0.4 and body.global_position.y < 0.6:
+			print("RESULT: PASS - body rested on ground near expected height (~0.5)")
+		else:
+			print("RESULT: FAIL - body did not rest at expected height")
+
+		# Raycast test: cast straight down from above the ground.
+		var space_state: PhysicsDirectSpaceState3D = get_root().get_world_3d().direct_space_state
+		var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(Vector3(3, 5, 3), Vector3(3, -5, 3))
+		var result: Dictionary = space_state.intersect_ray(query)
+		if result.has("position"):
+			print("Raycast hit position: ", result["position"])
+			if abs(result["position"].y - 0.0) < 0.1:
+				print("RESULT: PASS - raycast hit ground at expected height")
+			else:
+				print("RESULT: FAIL - raycast hit unexpected height")
+		else:
+			print("RESULT: FAIL - raycast did not hit anything")
+
+		quit()
+	return false
+
+
+#================================================================================
+# demo_scene.tscn (tscn)
+#================================================================================
+
+[gd_scene load_steps=2 format=3 uid="uid://c0x3ddemo0001"]
+
+[ext_resource type="Script" uid="uid://creesudame5v5" path="res://demo_scene.gd" id="1_demo"]
+
+[node name="DemoScene" type="Node3D"]
+script = ExtResource("1_demo")
+

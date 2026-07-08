@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../containers/rid_owner.hpp"
+#include "../misc/box3d_pair_exceptions_3d.hpp"
 
 #include <godot_cpp/classes/physics_direct_body_state3d.hpp>
 #include <godot_cpp/classes/physics_server3d_extension.hpp>
@@ -192,11 +193,11 @@ public:
 	void _slider_joint_set_param(const RID& p_joint, PhysicsServer3D::SliderJointParam p_param, double p_value) override;
 	double _slider_joint_get_param(const RID& p_joint, PhysicsServer3D::SliderJointParam p_param) const override;
 
-	// Non-goal joint types: create nothing and warn loudly rather than silently no-op.
 	void _joint_make_cone_twist(const RID& p_joint, const RID& p_body_a, const Transform3D& p_local_ref_a, const RID& p_body_b, const Transform3D& p_local_ref_b) override;
 	void _cone_twist_joint_set_param(const RID& p_joint, PhysicsServer3D::ConeTwistJointParam p_param, double p_value) override;
 	double _cone_twist_joint_get_param(const RID& p_joint, PhysicsServer3D::ConeTwistJointParam p_param) const override;
 
+	// Non-goal joint type: create nothing and warn loudly rather than silently no-op.
 	void _joint_make_generic_6dof(const RID& p_joint, const RID& p_body_a, const Transform3D& p_local_ref_a, const RID& p_body_b, const Transform3D& p_local_ref_b) override;
 	void _generic_6dof_joint_set_param(const RID& p_joint, Vector3::Axis p_axis, PhysicsServer3D::G6DOFJointAxisParam p_param, double p_value) override;
 	double _generic_6dof_joint_get_param(const RID& p_joint, Vector3::Axis p_axis, PhysicsServer3D::G6DOFJointAxisParam p_param) const override;
@@ -270,6 +271,10 @@ private:
 	RID_PtrOwner<Box3DAreaImpl3D> area_owner;
 	RID_PtrOwner<Box3DShapeImpl3D> shape_owner;
 	RID_PtrOwner<Box3DJointImpl3D> joint_owner;
+
+	// Per-pair collision exception bridge (filter joints + symmetric query exclusions);
+	// see box3d_pair_exceptions_3d.hpp for the two-layer design.
+	Box3DPairExceptions3D pair_exceptions;
 
 	HashSet<Box3DSpace3D*> active_spaces;
 };

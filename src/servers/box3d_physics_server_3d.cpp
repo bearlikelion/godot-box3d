@@ -1,5 +1,6 @@
 #include "box3d_physics_server_3d.hpp"
 
+#include "../joints/box3d_cone_twist_joint_impl_3d.hpp"
 #include "../joints/box3d_hinge_joint_impl_3d.hpp"
 #include "../joints/box3d_joint_impl_3d.hpp"
 #include "../joints/box3d_pin_joint_impl_3d.hpp"
@@ -13,6 +14,7 @@
 #include "../shapes/box3d_capsule_shape_impl_3d.hpp"
 #include "../shapes/box3d_concave_polygon_shape_impl_3d.hpp"
 #include "../shapes/box3d_convex_polygon_shape_impl_3d.hpp"
+#include "../shapes/box3d_cylinder_shape_impl_3d.hpp"
 #include "../shapes/box3d_heightmap_shape_impl_3d.hpp"
 #include "../shapes/box3d_shape_impl_3d.hpp"
 #include "../shapes/box3d_sphere_shape_impl_3d.hpp"
@@ -23,6 +25,26 @@
 #include <box3d/box3d.h>
 
 Box3DPhysicsServer3D* Box3DPhysicsServer3D::singleton = nullptr;
+
+namespace {
+
+// Godot core configures joint parameters and flags on RIDs that may still be
+// unconfigured placeholders (a _joint_create()d RID before any _joint_make_* has run,
+// e.g. a Joint3D node entering the tree with node_a/b unset). Those calls are silently
+// ignored: core re-applies every parameter after the corresponding _joint_make_*, so
+// nothing is lost. A non-null joint of the wrong concrete type, however, is a real
+// caller bug and still errors loudly.
+template <typename TJoint>
+TJoint* get_configured_joint_or_null(Box3DJointImpl3D* p_joint) {
+	if (p_joint == nullptr) {
+		return nullptr;
+	}
+	TJoint* typed = dynamic_cast<TJoint*>(p_joint);
+	ERR_FAIL_NULL_V_MSG(typed, nullptr, "Box3D: joint RID does not match the requested joint type.");
+	return typed;
+}
+
+} // namespace
 
 Box3DPhysicsServer3D::Box3DPhysicsServer3D() {
 	singleton = this;
@@ -79,7 +101,11 @@ RID Box3DPhysicsServer3D::_capsule_shape_create() {
 }
 
 RID Box3DPhysicsServer3D::_cylinder_shape_create() {
-	ERR_FAIL_V_MSG(RID(), "Box3D: CylinderShape3D is not supported in this version of the Box3D extension.");
+	WARN_PRINT_ONCE("Box3D: CylinderShape3D is approximated as a 16-sided convex prism (Box3D has no analytic cylinder primitive).");
+	auto* shape = memnew(Box3DCylinderShapeImpl3D);
+	const RID rid = shape_owner.make_rid(shape);
+	shape->set_rid(rid);
+	return rid;
 }
 
 RID Box3DPhysicsServer3D::_convex_polygon_shape_create() {
@@ -111,6 +137,12 @@ void Box3DPhysicsServer3D::_shape_set_data(const RID& p_shape, const Variant& p_
 	Box3DShapeImpl3D* shape = shape_owner.get_or_null(p_shape);
 	ERR_FAIL_NULL(shape);
 	shape->set_data(p_data);
+	// Geometry changes must reach every live body/area referencing this shape resource.
+	// Godot legitimately mutates shape data after attachment; CSG collision is the
+	// canonical case (attach empty concave shape, set_faces on every brush rebuild).
+	for (Box3DShapedObjectImpl3D* owner : shape->get_owners()) {
+		owner->refresh_shape(shape);
+	}
 }
 
 void Box3DPhysicsServer3D::_shape_set_custom_solver_bias(const RID& p_shape, double p_bias) {
@@ -310,6 +342,15 @@ uint64_t Box3DPhysicsServer3D::_area_get_object_instance_id(const RID& p_area) c
 
 void Box3DPhysicsServer3D::_area_set_param(const RID& p_area, PhysicsServer3D::AreaParameter p_param, const Variant& p_value) {
 	Box3DAreaImpl3D* area = area_owner.get_or_null(p_area);
+	if (area == nullptr) {
+		// Godot core's contract (mirrored from GodotPhysicsServer3D and Jolt): a space
+		// RID here addresses that space's DEFAULT area. World3D applies the project's
+		// gravity/damping settings exactly this way on every scene switch, so without
+		// this mapping those settings never reach the Box3D world.
+		if (Box3DSpace3D* param_space = space_owner.get_or_null(p_area)) {
+			area = param_space->get_default_area();
+		}
+	}
 	ERR_FAIL_NULL(area);
 	area->set_param(p_param, p_value);
 }
@@ -322,6 +363,12 @@ void Box3DPhysicsServer3D::_area_set_transform(const RID& p_area, const Transfor
 
 Variant Box3DPhysicsServer3D::_area_get_param(const RID& p_area, PhysicsServer3D::AreaParameter p_param) const {
 	Box3DAreaImpl3D* area = area_owner.get_or_null(p_area);
+	if (area == nullptr) {
+		// See _area_set_param: a space RID addresses that space's default area.
+		if (Box3DSpace3D* param_space = space_owner.get_or_null(p_area)) {
+			area = param_space->get_default_area();
+		}
+	}
 	ERR_FAIL_NULL_V(area, Variant());
 	return area->get_param(p_param);
 }
@@ -399,6 +446,10 @@ void Box3DPhysicsServer3D::_body_set_space(const RID& p_body, const RID& p_space
 	if (space != nullptr) {
 		space->register_body(body);
 	}
+	// The body's b3BodyId was just destroyed/recreated; any exception filter joints it
+	// carried died with it (Box3D destroys attached joints in b3DestroyBody), so re-sync
+	// them against the new space.
+	pair_exceptions.refresh_body(body);
 }
 
 RID Box3DPhysicsServer3D::_body_get_space(const RID& p_body) const {
@@ -412,6 +463,9 @@ void Box3DPhysicsServer3D::_body_set_mode(const RID& p_body, PhysicsServer3D::Bo
 	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
 	ERR_FAIL_NULL(body);
 	body->set_mode(p_mode);
+	// A pair whose filter joint was skipped while both bodies were static becomes
+	// jointable once either turns kinematic/dynamic (and vice versa), so re-sync.
+	pair_exceptions.refresh_body(body);
 }
 
 PhysicsServer3D::BodyMode Box3DPhysicsServer3D::_body_get_mode(const RID& p_body) const {
@@ -762,17 +816,27 @@ bool Box3DPhysicsServer3D::_body_is_axis_locked(const RID& p_body, PhysicsServer
 }
 
 void Box3DPhysicsServer3D::_body_add_collision_exception(const RID& p_body, const RID& p_excepted_body) {
-	// v1: full per-pair collision exception lists are a non-goal. The common single-group
-	// case is handled via b3Filter.groupIndex instead (see the plan's Non-goals section).
-	WARN_PRINT_ONCE("Box3D: per-pair collision exceptions are not implemented in this version; use collision layers/masks instead.");
+	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL(body);
+	Box3DBodyImpl3D* other = body_owner.get_or_null(p_excepted_body);
+	pair_exceptions.add(body, p_excepted_body, other);
 }
 
 void Box3DPhysicsServer3D::_body_remove_collision_exception(const RID& p_body, const RID& p_excepted_body) {
-	// See _body_add_collision_exception.
+	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL(body);
+	Box3DBodyImpl3D* other = body_owner.get_or_null(p_excepted_body);
+	pair_exceptions.remove(body, p_excepted_body, other);
 }
 
 TypedArray<RID> Box3DPhysicsServer3D::_body_get_collision_exceptions(const RID& p_body) const {
-	return TypedArray<RID>();
+	TypedArray<RID> result;
+	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL_V(body, result);
+	for (const RID& rid : body->get_collision_exceptions()) {
+		result.push_back(rid);
+	}
+	return result;
 }
 
 void Box3DPhysicsServer3D::_body_set_max_contacts_reported(const RID& p_body, int32_t p_amount) {
@@ -879,14 +943,18 @@ void Box3DPhysicsServer3D::_joint_make_pin(const RID& p_joint, const RID& p_body
 }
 
 void Box3DPhysicsServer3D::_pin_joint_set_param(const RID& p_joint, PhysicsServer3D::PinJointParam p_param, double p_value) {
-	auto* joint = dynamic_cast<Box3DPinJointImpl3D*>(joint_owner.get_or_null(p_joint));
-	ERR_FAIL_NULL(joint);
+	auto* joint = get_configured_joint_or_null<Box3DPinJointImpl3D>(joint_owner.get_or_null(p_joint));
+	if (joint == nullptr) {
+		return;
+	}
 	joint->set_param(p_param, p_value);
 }
 
 double Box3DPhysicsServer3D::_pin_joint_get_param(const RID& p_joint, PhysicsServer3D::PinJointParam p_param) const {
-	auto* joint = dynamic_cast<Box3DPinJointImpl3D*>(joint_owner.get_or_null(p_joint));
-	ERR_FAIL_NULL_V(joint, 0.0);
+	auto* joint = get_configured_joint_or_null<Box3DPinJointImpl3D>(joint_owner.get_or_null(p_joint));
+	if (joint == nullptr) {
+		return 0.0;
+	}
 	return joint->get_param(p_param);
 }
 
@@ -948,26 +1016,34 @@ void Box3DPhysicsServer3D::_joint_make_hinge_simple(const RID& p_joint, const RI
 }
 
 void Box3DPhysicsServer3D::_hinge_joint_set_param(const RID& p_joint, PhysicsServer3D::HingeJointParam p_param, double p_value) {
-	auto* joint = dynamic_cast<Box3DHingeJointImpl3D*>(joint_owner.get_or_null(p_joint));
-	ERR_FAIL_NULL(joint);
+	auto* joint = get_configured_joint_or_null<Box3DHingeJointImpl3D>(joint_owner.get_or_null(p_joint));
+	if (joint == nullptr) {
+		return;
+	}
 	joint->set_param(p_param, p_value);
 }
 
 double Box3DPhysicsServer3D::_hinge_joint_get_param(const RID& p_joint, PhysicsServer3D::HingeJointParam p_param) const {
-	auto* joint = dynamic_cast<Box3DHingeJointImpl3D*>(joint_owner.get_or_null(p_joint));
-	ERR_FAIL_NULL_V(joint, 0.0);
+	auto* joint = get_configured_joint_or_null<Box3DHingeJointImpl3D>(joint_owner.get_or_null(p_joint));
+	if (joint == nullptr) {
+		return 0.0;
+	}
 	return joint->get_param(p_param);
 }
 
 void Box3DPhysicsServer3D::_hinge_joint_set_flag(const RID& p_joint, PhysicsServer3D::HingeJointFlag p_flag, bool p_enabled) {
-	auto* joint = dynamic_cast<Box3DHingeJointImpl3D*>(joint_owner.get_or_null(p_joint));
-	ERR_FAIL_NULL(joint);
+	auto* joint = get_configured_joint_or_null<Box3DHingeJointImpl3D>(joint_owner.get_or_null(p_joint));
+	if (joint == nullptr) {
+		return;
+	}
 	joint->set_flag(p_flag, p_enabled);
 }
 
 bool Box3DPhysicsServer3D::_hinge_joint_get_flag(const RID& p_joint, PhysicsServer3D::HingeJointFlag p_flag) const {
-	auto* joint = dynamic_cast<Box3DHingeJointImpl3D*>(joint_owner.get_or_null(p_joint));
-	ERR_FAIL_NULL_V(joint, false);
+	auto* joint = get_configured_joint_or_null<Box3DHingeJointImpl3D>(joint_owner.get_or_null(p_joint));
+	if (joint == nullptr) {
+		return false;
+	}
 	return joint->get_flag(p_flag);
 }
 
@@ -989,26 +1065,55 @@ void Box3DPhysicsServer3D::_joint_make_slider(const RID& p_joint, const RID& p_b
 }
 
 void Box3DPhysicsServer3D::_slider_joint_set_param(const RID& p_joint, PhysicsServer3D::SliderJointParam p_param, double p_value) {
-	auto* joint = dynamic_cast<Box3DSliderJointImpl3D*>(joint_owner.get_or_null(p_joint));
-	ERR_FAIL_NULL(joint);
+	auto* joint = get_configured_joint_or_null<Box3DSliderJointImpl3D>(joint_owner.get_or_null(p_joint));
+	if (joint == nullptr) {
+		return;
+	}
 	joint->set_param(p_param, p_value);
 }
 
 double Box3DPhysicsServer3D::_slider_joint_get_param(const RID& p_joint, PhysicsServer3D::SliderJointParam p_param) const {
-	auto* joint = dynamic_cast<Box3DSliderJointImpl3D*>(joint_owner.get_or_null(p_joint));
-	ERR_FAIL_NULL_V(joint, 0.0);
+	auto* joint = get_configured_joint_or_null<Box3DSliderJointImpl3D>(joint_owner.get_or_null(p_joint));
+	if (joint == nullptr) {
+		return 0.0;
+	}
 	return joint->get_param(p_param);
 }
 
 void Box3DPhysicsServer3D::_joint_make_cone_twist(const RID& p_joint, const RID& p_body_a, const Transform3D& p_local_ref_a, const RID& p_body_b, const Transform3D& p_local_ref_b) {
-	ERR_FAIL_MSG("Box3D: ConeTwistJoint3D is not supported in this version of the Box3D extension.");
+	_joint_clear(p_joint);
+
+	Box3DBodyImpl3D* body_a = body_owner.get_or_null(p_body_a);
+	Box3DBodyImpl3D* body_b = body_owner.get_or_null(p_body_b);
+	ERR_FAIL_NULL(body_a);
+	ERR_FAIL_NULL(body_b);
+
+	// Godot's cone-twist joint twists about the LOCAL X axis of its joint frames (Bullet
+	// heritage), while Box3D's spherical joint centers the cone on frame A's local Z and
+	// measures twist about frame B's local Z. Post-rotate both frames a quarter turn
+	// about Y so local Z lands on the Godot twist axis (R_y(+90deg) maps +Z -> +X).
+	const Transform3D axis_remap(Basis(Vector3(0, 1, 0), Math_PI * 0.5), Vector3());
+
+	auto* joint = memnew(Box3DConeTwistJointImpl3D(body_a, body_b, p_local_ref_a * axis_remap, p_local_ref_b * axis_remap));
+	joint->set_rid(p_joint);
+	joint_owner.replace(p_joint, joint);
+	joint->rebuild();
 }
 
 void Box3DPhysicsServer3D::_cone_twist_joint_set_param(const RID& p_joint, PhysicsServer3D::ConeTwistJointParam p_param, double p_value) {
+	auto* joint = get_configured_joint_or_null<Box3DConeTwistJointImpl3D>(joint_owner.get_or_null(p_joint));
+	if (joint == nullptr) {
+		return;
+	}
+	joint->set_param(p_param, p_value);
 }
 
 double Box3DPhysicsServer3D::_cone_twist_joint_get_param(const RID& p_joint, PhysicsServer3D::ConeTwistJointParam p_param) const {
-	return 0.0;
+	auto* joint = get_configured_joint_or_null<Box3DConeTwistJointImpl3D>(joint_owner.get_or_null(p_joint));
+	if (joint == nullptr) {
+		return 0.0;
+	}
+	return joint->get_param(p_param);
 }
 
 void Box3DPhysicsServer3D::_joint_make_generic_6dof(const RID& p_joint, const RID& p_body_a, const Transform3D& p_local_ref_a, const RID& p_body_b, const Transform3D& p_local_ref_b) {
@@ -1047,13 +1152,23 @@ int32_t Box3DPhysicsServer3D::_joint_get_solver_priority(const RID& p_joint) con
 
 void Box3DPhysicsServer3D::_joint_disable_collisions_between_bodies(const RID& p_joint, bool p_disable) {
 	Box3DJointImpl3D* joint = joint_owner.get_or_null(p_joint);
-	ERR_FAIL_NULL(joint);
+	if (joint == nullptr) {
+		// Godot core calls this on freshly _joint_create()d RIDs before any
+		// _joint_make_* has run (e.g. a Joint3D node entering the tree with node_a/b
+		// still unset). The concrete joint doesn't exist yet, and core re-applies the
+		// flag after configuration, so an unconfigured placeholder is a silent no-op
+		// rather than an error.
+		return;
+	}
 	joint->set_collision_disabled(p_disable);
 }
 
 bool Box3DPhysicsServer3D::_joint_is_disabled_collisions_between_bodies(const RID& p_joint) const {
 	Box3DJointImpl3D* joint = joint_owner.get_or_null(p_joint);
-	ERR_FAIL_NULL_V(joint, false);
+	if (joint == nullptr) {
+		// See _joint_disable_collisions_between_bodies: unconfigured placeholder.
+		return false;
+	}
 	return joint->is_collision_disabled();
 }
 
@@ -1188,6 +1303,10 @@ void Box3DPhysicsServer3D::_free_rid(const RID& p_rid) {
 	}
 
 	if (Box3DBodyImpl3D* body = body_owner.get_or_null(p_rid)) {
+		// Tear down every exception pair touching this body first: live filter joints
+		// must be destroyed while the body still exists, and counterpart bodies must
+		// stop excluding this RID from their motion-test queries.
+		pair_exceptions.remove_body(body);
 		if (Box3DSpace3D* space = body->get_space()) {
 			space->unregister_body(body);
 		}

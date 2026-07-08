@@ -29,8 +29,8 @@ func _process(delta: float) -> bool:
 	if frames == 300:
 		print("Body Y after 300 frames (5s): ", body.global_position.y)
 		print("Body linear velocity: ", body.linear_velocity)
-		if body.global_position.y > 0.9 and body.global_position.y < 1.1:
-			print("RESULT: PASS - body rested on ground near expected height (~1.0)")
+		if body.global_position.y > 0.4 and body.global_position.y < 0.6:
+			print("RESULT: PASS - body rested on ground near expected height (~0.5)")
 		else:
 			print("RESULT: FAIL - body did not rest at expected height")
 

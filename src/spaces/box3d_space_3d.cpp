@@ -11,12 +11,36 @@
 
 namespace {
 constexpr int SUB_STEP_COUNT = 4;
+
+// Godot solver-pair semantics: two bodies generate contacts iff EITHER scans the other
+// (A.mask & B.layer) || (B.mask & A.layer). Engine-level shape filters are deliberately
+// permissive (maskBits=~0, see Box3DShapedObjectImpl3D::build_shape), so this callback
+// is the sole authority for body-body pair filtering. Sensor pairs pass through
+// unconditionally: the engine consults this callback for sensors too, but their pairing
+// order is unspecified and Godot's Area3D rule is asymmetric (the AREA's mask vs the
+// body's layer), so area semantics are enforced where the detector is known -- in
+// Box3DSpace3D::_pull_sensor_events.
+bool godot_pair_filter(b3ShapeId p_shape_a, b3ShapeId p_shape_b, void* p_context) {
+	(void)p_context;
+	if (b3Shape_IsSensor(p_shape_a) || b3Shape_IsSensor(p_shape_b)) {
+		return true;
+	}
+	auto* a = static_cast<Box3DObjectImpl3D*>(b3Body_GetUserData(b3Shape_GetBody(p_shape_a)));
+	auto* b = static_cast<Box3DObjectImpl3D*>(b3Body_GetUserData(b3Shape_GetBody(p_shape_b)));
+	if (a == nullptr || b == nullptr) {
+		return true;
+	}
+	return (a->get_collision_mask() & b->get_collision_layer()) != 0 ||
+			(b->get_collision_mask() & a->get_collision_layer()) != 0;
+}
+
 } // namespace
 
 Box3DSpace3D::Box3DSpace3D() {
 	b3WorldDef def = b3DefaultWorldDef();
 	def.workerCount = 1;
 	world_id = b3CreateWorld(&def);
+	b3World_SetCustomFilterCallback(world_id, godot_pair_filter, nullptr);
 
 	direct_state = memnew(Box3DPhysicsDirectSpaceState3D);
 	direct_state->set_space(this);
@@ -152,6 +176,14 @@ void Box3DSpace3D::_pull_sensor_events() {
 		auto* area = static_cast<Box3DAreaImpl3D*>(b3Body_GetUserData(sensor_body_id));
 		auto* other = static_cast<Box3DShapedObjectImpl3D*>(b3Body_GetUserData(visitor_body_id));
 		if (area == nullptr || other == nullptr || other == area) {
+			continue;
+		}
+		// Godot Area3D detection rule: the AREA's collision_mask against the visitor's
+		// collision_layer (the visitor's mask is irrelevant). Engine-level sensor
+		// pairing is permissive (see godot_pair_filter in box3d_space_3d.cpp), so this
+		// is where the semantics are enforced. End events need no mirror check:
+		// remove_overlap() only fires for overlaps admitted here.
+		if ((area->get_collision_mask() & other->get_collision_layer()) == 0) {
 			continue;
 		}
 

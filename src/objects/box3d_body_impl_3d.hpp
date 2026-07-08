@@ -3,6 +3,7 @@
 #include "box3d_shaped_object_impl_3d.hpp"
 
 #include <godot_cpp/classes/physics_server3d.hpp>
+#include <godot_cpp/templates/hash_set.hpp>
 #include <godot_cpp/variant/callable.hpp>
 
 using namespace godot;
@@ -144,6 +145,28 @@ public:
 
 	void set_contact_monitor_enabled(bool p_enabled) { contact_monitor_enabled = p_enabled; }
 
+	// --- Per-pair collision exceptions (maintained via Box3DPairExceptions3D) ---
+
+	// Directional record of what THIS body excepted; round-tripped through
+	// _body_get_collision_exceptions, and deliberately tolerant of stale RIDs (matching
+	// Godot Physics/Jolt, which also keep freed-body RIDs in exception lists).
+	void add_collision_exception(const RID& p_rid) { collision_exceptions.insert(p_rid); }
+
+	void remove_collision_exception(const RID& p_rid) { collision_exceptions.erase(p_rid); }
+
+	const HashSet<RID>& get_collision_exceptions() const { return collision_exceptions; }
+
+	// Symmetric union of every pair this body participates in (either direction), kept
+	// in lockstep by Box3DPairExceptions3D. Merged into the motion-test query filter:
+	// kinematic bodies never generate solver contacts against each other, so their
+	// mutual exceptions must be honored in body_test_motion's shape cast, which filter
+	// joints cannot affect.
+	void add_query_exclusion(const RID& p_rid) { query_exclusions.insert(p_rid); }
+
+	void remove_query_exclusion(const RID& p_rid) { query_exclusions.erase(p_rid); }
+
+	const HashSet<RID>& get_query_exclusions() const { return query_exclusions; }
+
 protected:
 	b3BodyId _create_body_id(b3WorldId p_world_id) override;
 
@@ -191,6 +214,9 @@ private:
 
 	int32_t max_contacts_reported = 0;
 	bool contact_monitor_enabled = false;
+
+	HashSet<RID> collision_exceptions;
+	HashSet<RID> query_exclusions;
 
 	Box3DPhysicsDirectBodyState3D* direct_state = nullptr;
 };

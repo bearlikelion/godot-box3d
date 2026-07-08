@@ -54,9 +54,20 @@ void Box3DConcavePolygonShapeImpl3D::_rebuild_mesh() {
 
 	for (int i = 0; i < face_count; i++) {
 		vertices[i] = godot_to_b3(faces[i]);
-		indices[i] = i;
 		min_point = min_point.min(faces[i]);
 		max_point = max_point.max(faces[i]);
+	}
+
+	// Godot winds front faces CLOCKWISE (this is what CSG, trimesh bakes, and
+	// create_trimesh_shape all emit); Box3D expects COUNTER-clockwise fronts. Feeding
+	// Godot order verbatim makes every triangle face inward: downward rays skip the top
+	// face of a floor and report its bottom face from inside, and solver contact
+	// normals against meshes invert. Swapping two indices per triangle flips the
+	// winding without touching vertex data.
+	for (int t = 0; t < triangle_count; t++) {
+		indices[t * 3 + 0] = t * 3 + 0;
+		indices[t * 3 + 1] = t * 3 + 2;
+		indices[t * 3 + 2] = t * 3 + 1;
 	}
 
 	aabb = AABB(min_point, max_point - min_point);

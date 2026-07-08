@@ -134,7 +134,7 @@ void Box3DBodyImpl3D::set_inertia(const Vector3& p_inertia) {
 
 Vector3 Box3DBodyImpl3D::get_center_of_mass() const {
 	if (has_body_id()) {
-		return b3_to_godot(b3Body_GetLocalCenterOfMass(body_id));
+		return b3_to_godot(b3Body_GetLocalCenter(body_id));
 	}
 	return center_of_mass_custom;
 }

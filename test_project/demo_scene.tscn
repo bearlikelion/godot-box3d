@@ -1,6 +1,6 @@
-[gd_scene format=3 uid="uid://c0x3ddemo0001"]
+[gd_scene load_steps=2 format=3 uid="uid://c0x3ddemo0001"]
 
-[ext_resource type="Script" path="res://demo_scene.gd" id="1_demo"]
+[ext_resource type="Script" uid="uid://creesudame5v5" path="res://demo_scene.gd" id="1_demo"]
 
 [node name="DemoScene" type="Node3D"]
 script = ExtResource("1_demo")

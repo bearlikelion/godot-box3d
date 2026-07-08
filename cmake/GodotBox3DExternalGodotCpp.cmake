@@ -94,3 +94,20 @@ set_target_properties(godot-cpp PROPERTIES
 	INTERFACE_INCLUDE_DIRECTORIES
 		"${GODOT_CPP_SOURCE_DIR}/include;${GODOT_CPP_SOURCE_DIR}/gdextension;${GODOT_CPP_BINARY_DIR}/gen/include"
 )
+
+# godot-cpp's own CMakeLists exports TYPED_METHOD_BIND as a PUBLIC compile definition on
+# MSVC (and its SCons build sets it plus NOMINMAX in tools/windows.py). That usage
+# requirement is lost across this hand-made IMPORTED target, so it must be restored here:
+# without it, any extension TU that instantiates ClassDB::bind_method takes the
+# reinterpret_cast-to-_gde_UnexistingClass path in method_bind.hpp, which MSVC rejects
+# with C2440 ("Pointers to members have different representations; cannot cast between
+# them") because MSVC member-pointer sizes vary by inheritance model. TYPED_METHOD_BIND
+# selects the fully-typed MethodBind templates with no cast, matching how the godot-cpp
+# static library itself was compiled inside the external project. GCC/Clang are
+# unaffected either way (Itanium ABI member pointers are uniform), which is why this only
+# surfaces on Windows.
+if(MSVC)
+	set_property(TARGET godot-cpp APPEND PROPERTY
+		INTERFACE_COMPILE_DEFINITIONS TYPED_METHOD_BIND NOMINMAX
+	)
+endif()

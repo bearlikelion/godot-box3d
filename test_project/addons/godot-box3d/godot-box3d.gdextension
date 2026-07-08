@@ -6,9 +6,9 @@ reloadable = true
 
 [libraries]
 
-linux.debug.x86_64 = "res://addons/godot-box3d/bin/libgodot-box3d.so"
-linux.release.x86_64 = "res://addons/godot-box3d/bin/libgodot-box3d.so"
-windows.debug.x86_64 = "res://addons/godot-box3d/bin/godot-box3d.dll"
-windows.release.x86_64 = "res://addons/godot-box3d/bin/godot-box3d.dll"
-macos.debug = "res://addons/godot-box3d/bin/libgodot-box3d.dylib"
-macos.release = "res://addons/godot-box3d/bin/libgodot-box3d.dylib"
+linux.debug.x86_64 = "res://addons/godot-box3d/libgodot-box3d.so"
+linux.release.x86_64 = "res://addons/godot-box3d/libgodot-box3d.so"
+windows.debug.x86_64 = "res://addons/godot-box3d/godot-box3d.dll"
+windows.release.x86_64 = "res://addons/godot-box3d/godot-box3d.dll"
+macos.debug = "res://addons/godot-box3d/libgodot-box3d.dylib"
+macos.release = "res://addons/godot-box3d/libgodot-box3d.dylib"
