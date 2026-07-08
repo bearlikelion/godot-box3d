@@ -147,7 +147,7 @@ b3ShapeId create_box3d_shape(
 				const real_t angle = Math::acos(CLAMP(up.dot(normal), -1.0, 1.0));
 				basis = Basis(axis, angle);
 			}
-			const Vector3 origin = normal * (real_t)plane.d;
+			const Vector3 origin = normal * (real_t)(plane.d - Box3DWorldBoundaryShapeImpl3D::PLATE_HALF_THICKNESS);
 			const Transform3D plate_transform(basis, origin);
 			const Transform3D combined = local * plate_transform;
 			const b3Transform box_transform = godot_to_b3_transform(combined);
