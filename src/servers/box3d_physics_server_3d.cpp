@@ -1227,13 +1227,16 @@ void Box3DPhysicsServer3D::_free_rid(const RID& p_rid) {
 }
 
 void Box3DPhysicsServer3D::_set_active(bool p_active) {
-	// Individual space activation is handled via _space_set_active; nothing global to do.
+	active = p_active;
 }
 
 void Box3DPhysicsServer3D::_init() {
 }
 
 void Box3DPhysicsServer3D::_step(double p_step) {
+	if (!active) {
+		return;
+	}
 	for (Box3DSpace3D* space : active_spaces) {
 		space->step((float)p_step);
 	}
@@ -1243,6 +1246,9 @@ void Box3DPhysicsServer3D::_sync() {
 }
 
 void Box3DPhysicsServer3D::_flush_queries() {
+	if (!active) {
+		return;
+	}
 	for (Box3DSpace3D* space : active_spaces) {
 		space->flush_queries();
 	}

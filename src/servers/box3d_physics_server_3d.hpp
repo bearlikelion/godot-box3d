@@ -272,4 +272,5 @@ private:
 	RID_PtrOwner<Box3DJointImpl3D> joint_owner;
 
 	HashSet<Box3DSpace3D*> active_spaces;
+	bool active = true;
 };
