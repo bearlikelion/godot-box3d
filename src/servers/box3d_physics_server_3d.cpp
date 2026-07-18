@@ -796,12 +796,15 @@ double Box3DPhysicsServer3D::_body_get_contacts_reported_depth_threshold(const R
 }
 
 void Box3DPhysicsServer3D::_body_set_omit_force_integration(const RID& p_body, bool p_enable) {
-	// Not applicable: Box3D has no separate "omit force integration" concept; the
-	// force_integration_callback (when set) is simply the sole source of forces for v1.
+	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL(body);
+	body->set_omit_force_integration(p_enable);
 }
 
 bool Box3DPhysicsServer3D::_body_is_omitting_force_integration(const RID& p_body) const {
-	return false;
+	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL_V(body, false);
+	return body->is_omitting_force_integration();
 }
 
 void Box3DPhysicsServer3D::_body_set_state_sync_callback(const RID& p_body, const Callable& p_callable) {

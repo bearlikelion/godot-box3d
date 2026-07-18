@@ -5,6 +5,7 @@
 #include "../objects/box3d_body_impl_3d.hpp"
 #include "../objects/box3d_physics_direct_body_state_3d.hpp"
 #include "../objects/box3d_shaped_object_impl_3d.hpp"
+#include "../servers/box3d_physics_server_3d.hpp"
 #include "box3d_physics_direct_space_state_3d.hpp"
 
 #include <box3d/box3d.h>
@@ -74,14 +75,47 @@ void Box3DSpace3D::set_default_area(Box3DAreaImpl3D* p_area) {
 void Box3DSpace3D::step(float p_step) {
 	last_step = p_step;
 
-	_apply_area_overrides();
-
-	for (Box3DBodyImpl3D* body : bodies) {
-		body->pre_step();
-	}
-
 	if (default_area != nullptr) {
 		b3World_SetGravity(world_id, godot_to_b3(default_area->compute_gravity(Vector3())));
+	}
+
+	_apply_area_overrides();
+
+	LocalVector<RID> body_rids;
+	body_rids.reserve(bodies.size());
+	for (Box3DBodyImpl3D* body : bodies) {
+		body_rids.push_back(body->get_rid());
+	}
+
+	// Integration callbacks may detach or free bodies. Resolve a RID snapshot before and
+	// after each callback so user code cannot invalidate HashSet iteration or leave a stale
+	// body pointer in use.
+	for (const RID& body_rid : body_rids) {
+		Box3DBodyImpl3D* body = Box3DPhysicsServer3D::get_singleton()->get_body(body_rid);
+		if (body == nullptr || body->get_space() != this) {
+			continue;
+		}
+
+		const Callable callback = body->get_force_integration_callback();
+		if (callback.is_valid()) {
+			Box3DPhysicsDirectBodyState3D* state = body->get_direct_state_or_null();
+			const Variant userdata = body->get_force_integration_userdata();
+			Array arguments;
+			if (userdata.get_type() == Variant::NIL) {
+				arguments.resize(1);
+				arguments[0] = state;
+			} else {
+				arguments.resize(2);
+				arguments[0] = state;
+				arguments[1] = userdata;
+			}
+			callback.callv(arguments);
+		}
+
+		body = Box3DPhysicsServer3D::get_singleton()->get_body(body_rid);
+		if (body != nullptr && body->get_space() == this) {
+			body->pre_step();
+		}
 	}
 
 	b3World_Step(world_id, p_step, SUB_STEP_COUNT);
@@ -111,7 +145,8 @@ void Box3DSpace3D::_apply_area_overrides() {
 			if (body == nullptr || !body->has_body_id()) {
 				continue;
 			}
-			if (area->get_gravity_mode() != PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED) {
+			if (!body->is_omitting_force_integration() &&
+					area->get_gravity_mode() != PhysicsServer3D::AREA_SPACE_OVERRIDE_DISABLED) {
 				const Vector3 gravity = area->compute_gravity(body->get_transform().origin);
 				b3Body_ApplyForceToCenter(body->get_body_id(), godot_to_b3(gravity * (float)body->get_mass()), false);
 			}

@@ -207,8 +207,17 @@ double Box3DPhysicsDirectBodyState3D::_get_step() const {
 }
 
 void Box3DPhysicsDirectBodyState3D::_integrate_forces() {
-	// Default implementation: PhysicsServer3DExtension calls the script-side
-	// _integrate_forces() separately; nothing additional needed here for v1.
+	const real_t step = _get_step();
+	Vector3 linear_velocity = _get_linear_velocity() + _get_total_gravity() * step;
+	Vector3 angular_velocity = _get_angular_velocity();
+
+	const real_t linear_damp = MAX(0.0, 1.0 - step * _get_total_linear_damp());
+	const real_t angular_damp = MAX(0.0, 1.0 - step * _get_total_angular_damp());
+	linear_velocity *= linear_damp;
+	angular_velocity *= angular_damp;
+
+	_set_linear_velocity(linear_velocity);
+	_set_angular_velocity(angular_velocity);
 }
 
 PhysicsDirectSpaceState3D* Box3DPhysicsDirectBodyState3D::_get_space_state() {

@@ -63,6 +63,10 @@ public:
 
 	void set_gravity_scale(real_t p_scale);
 
+	bool is_omitting_force_integration() const { return omit_force_integration; }
+
+	void set_omit_force_integration(bool p_enabled);
+
 	Vector3 get_linear_velocity() const;
 
 	void set_linear_velocity(const Vector3& p_velocity);
@@ -119,8 +123,8 @@ public:
 
 	void set_constant_torque(const Vector3& p_torque);
 
-	// Called by Box3DSpace3D::pre_step() before b3World_Step: Box3D has no persistent
-	// "constant force" concept, so it must be reapplied every step.
+	// Called before b3World_Step to apply transient and constant force accumulators when
+	// standard force integration is enabled, then clear the transient accumulators.
 	void pre_step();
 
 	void set_state_sync_callback(const Callable& p_callable) { state_sync_callback = p_callable; }
@@ -154,6 +158,8 @@ protected:
 private:
 	void _update_motion_locks();
 
+	void _sync_force_integration_settings();
+
 	BodyMode mode = PhysicsServer3D::BODY_MODE_RIGID;
 
 	real_t mass = 1.0;
@@ -171,6 +177,7 @@ private:
 	real_t sleep_threshold = 0.05f;
 	bool sleep_enabled = true;
 	bool ccd_enabled = false;
+	bool omit_force_integration = false;
 
 	Vector3 initial_linear_velocity;
 	Vector3 initial_angular_velocity;
@@ -184,6 +191,8 @@ private:
 
 	Vector3 constant_force;
 	Vector3 constant_torque;
+	Vector3 applied_force;
+	Vector3 applied_torque;
 
 	Callable state_sync_callback;
 	Callable force_integration_callback;

@@ -43,9 +43,9 @@ b3BodyId Box3DBodyImpl3D::_create_body_id(b3WorldId p_world_id) {
 	def.rotation = t.q;
 	def.linearVelocity = godot_to_b3(initial_linear_velocity);
 	def.angularVelocity = godot_to_b3(initial_angular_velocity);
-	def.linearDamping = (float)linear_damping;
-	def.angularDamping = (float)angular_damping;
-	def.gravityScale = (float)gravity_scale;
+	def.linearDamping = omit_force_integration ? 0.0f : (float)linear_damping;
+	def.angularDamping = omit_force_integration ? 0.0f : (float)angular_damping;
+	def.gravityScale = omit_force_integration ? 0.0f : (float)gravity_scale;
 	def.sleepThreshold = (float)sleep_threshold;
 	def.userData = this;
 	def.enableSleep = sleep_enabled;
@@ -161,22 +161,39 @@ void Box3DBodyImpl3D::apply_mass_from_shapes() {
 void Box3DBodyImpl3D::set_linear_damping(real_t p_damping) {
 	linear_damping = p_damping;
 	if (has_body_id()) {
-		b3Body_SetLinearDamping(body_id, (float)p_damping);
+		b3Body_SetLinearDamping(body_id, omit_force_integration ? 0.0f : (float)p_damping);
 	}
 }
 
 void Box3DBodyImpl3D::set_angular_damping(real_t p_damping) {
 	angular_damping = p_damping;
 	if (has_body_id()) {
-		b3Body_SetAngularDamping(body_id, (float)p_damping);
+		b3Body_SetAngularDamping(body_id, omit_force_integration ? 0.0f : (float)p_damping);
 	}
 }
 
 void Box3DBodyImpl3D::set_gravity_scale(real_t p_scale) {
 	gravity_scale = p_scale;
 	if (has_body_id()) {
-		b3Body_SetGravityScale(body_id, (float)p_scale);
+		b3Body_SetGravityScale(body_id, omit_force_integration ? 0.0f : (float)p_scale);
 	}
+}
+
+void Box3DBodyImpl3D::set_omit_force_integration(bool p_enabled) {
+	if (omit_force_integration == p_enabled) {
+		return;
+	}
+	omit_force_integration = p_enabled;
+	_sync_force_integration_settings();
+}
+
+void Box3DBodyImpl3D::_sync_force_integration_settings() {
+	if (!has_body_id()) {
+		return;
+	}
+	b3Body_SetGravityScale(body_id, omit_force_integration ? 0.0f : (float)gravity_scale);
+	b3Body_SetLinearDamping(body_id, omit_force_integration ? 0.0f : (float)linear_damping);
+	b3Body_SetAngularDamping(body_id, omit_force_integration ? 0.0f : (float)angular_damping);
 }
 
 Vector3 Box3DBodyImpl3D::get_linear_velocity() const {
@@ -325,20 +342,23 @@ void Box3DBodyImpl3D::apply_torque_impulse(const Vector3& p_impulse) {
 
 void Box3DBodyImpl3D::apply_central_force(const Vector3& p_force) {
 	if (has_body_id()) {
-		b3Body_ApplyForceToCenter(body_id, godot_to_b3(p_force), true);
+		applied_force += p_force;
+		b3Body_SetAwake(body_id, true);
 	}
 }
 
 void Box3DBodyImpl3D::apply_force(const Vector3& p_force, const Vector3& p_position) {
 	if (has_body_id()) {
-		const Vector3 world_point = get_transform().xform(p_position);
-		b3Body_ApplyForce(body_id, godot_to_b3(p_force), godot_to_b3(world_point), true);
+		applied_force += p_force;
+		applied_torque += (p_position - get_center_of_mass()).cross(p_force);
+		b3Body_SetAwake(body_id, true);
 	}
 }
 
 void Box3DBodyImpl3D::apply_torque(const Vector3& p_torque) {
 	if (has_body_id()) {
-		b3Body_ApplyTorque(body_id, godot_to_b3(p_torque), true);
+		applied_torque += p_torque;
+		b3Body_SetAwake(body_id, true);
 	}
 }
 
@@ -369,12 +389,20 @@ void Box3DBodyImpl3D::set_constant_torque(const Vector3& p_torque) {
 
 void Box3DBodyImpl3D::pre_step() {
 	if (!has_body_id()) {
+		applied_force = Vector3();
+		applied_torque = Vector3();
 		return;
 	}
-	if (constant_force != Vector3()) {
-		b3Body_ApplyForceToCenter(body_id, godot_to_b3(constant_force), false);
+	if (!omit_force_integration) {
+		const Vector3 total_force = applied_force + constant_force;
+		const Vector3 total_torque = applied_torque + constant_torque;
+		if (total_force != Vector3()) {
+			b3Body_ApplyForceToCenter(body_id, godot_to_b3(total_force), false);
+		}
+		if (total_torque != Vector3()) {
+			b3Body_ApplyTorque(body_id, godot_to_b3(total_torque), false);
+		}
 	}
-	if (constant_torque != Vector3()) {
-		b3Body_ApplyTorque(body_id, godot_to_b3(constant_torque), false);
-	}
+	applied_force = Vector3();
+	applied_torque = Vector3();
 }
