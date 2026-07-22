@@ -99,6 +99,14 @@ require_pinned_emscripten() {
     note "Using Emscripten $actual"
 }
 
+is_git_checkout_root() {
+    local destination="$1"
+
+    [[ -d "$destination" ]] &&
+        git -C "$destination" rev-parse --is-inside-work-tree >/dev/null 2>&1 &&
+        [[ -z "$(git -C "$destination" rev-parse --show-prefix 2>/dev/null)" ]]
+}
+
 ensure_git_checkout() {
     local name="$1"
     local repository="$2"
@@ -108,14 +116,14 @@ ensure_git_checkout() {
 
     require_command git
 
-    if [[ -e "$destination" ]] && ! git -C "$destination" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    if [[ -e "$destination" ]] && ! is_git_checkout_root "$destination"; then
         if [[ -n "$(find "$destination" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
             fail "$name destination exists and is not a Git checkout: $destination"
         fi
         rm -rf "$destination"
     fi
 
-    if ! git -C "$destination" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    if ! is_git_checkout_root "$destination"; then
         note "Cloning $name ($label)"
         git clone --filter=blob:none --no-checkout "$repository" "$destination"
     fi
