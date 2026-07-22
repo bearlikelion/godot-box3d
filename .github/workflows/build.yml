@@ -1,10 +1,14 @@
-name: Build
+name: Desktop Builds
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -12,40 +16,41 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            cmake-generator: Ninja
-          - os: windows-latest
-            cmake-generator: Ninja
-          - os: macos-latest
-            cmake-generator: Ninja
+          - os: ubuntu-22.04
+            platform: linux
+            arch: x86_64
+          - os: windows-2022
+            platform: windows
+            arch: x86_64
+          - os: macos-14
+            platform: macos
+            arch: universal
 
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Install SCons
+        shell: bash
+        run: |
+          python3 -m pip install "scons==4.8.1"
+          scons --version
+
+      - name: Bootstrap pinned dependencies
+        shell: bash
+        run: scripts/bootstrap_dependencies.sh
+
+      - name: Build debug and release
+        shell: bash
+        run: |
+          scons -j 4 platform=${{ matrix.platform }} target=template_debug arch=${{ matrix.arch }}
+          scons -j 4 platform=${{ matrix.platform }} target=template_release arch=${{ matrix.arch }}
+
+      - name: Upload desktop binaries
+        uses: actions/upload-artifact@v7
         with:
-          submodules: true
-
-      - name: Install dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
-
-      - name: Install dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: brew install ninja
-
-      - name: Install dependencies (Windows)
-        if: runner.os == 'Windows'
-        run: choco install ninja
-
-      - name: Configure
-        run: cmake -B build -G "${{ matrix.cmake-generator }}"
-
-      - name: Build
-        run: cmake --build build --parallel
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: godot-box3d-${{ runner.os }}
-          path: bin/
+          name: godot-box3d-${{ matrix.platform }}-${{ matrix.arch }}
+          path: bin/${{ matrix.platform }}/*
+          if-no-files-found: error

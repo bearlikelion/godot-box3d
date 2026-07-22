@@ -4,3 +4,10 @@ build-*/
 bin/
 /temp/
 test_project/.godot/
+.deps/
+.venv/
+dist/
+.sconsign.dblite
+*.zip
+__pycache__/
+*.py[cod]

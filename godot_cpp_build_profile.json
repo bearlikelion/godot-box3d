@@ -1,0 +1,14 @@
+{
+  "enabled_classes": [
+    "CompositorEffect",
+    "Object",
+    "PhysicsDirectBodyState3D",
+    "PhysicsDirectBodyState3DExtension",
+    "PhysicsDirectSpaceState3D",
+    "PhysicsDirectSpaceState3DExtension",
+    "PhysicsServer3D",
+    "PhysicsServer3DExtension",
+    "PhysicsServer3DManager",
+    "PhysicsServer3DRenderingServerHandler"
+  ]
+}

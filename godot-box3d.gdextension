@@ -2,13 +2,29 @@
 
 entry_symbol = "godot_box3d_main"
 compatibility_minimum = "4.3"
-reloadable = true
+reloadable = false
 
 [libraries]
 
-linux.debug.x86_64 = "res://bin/libgodot-box3d.so"
-linux.release.x86_64 = "res://bin/libgodot-box3d.so"
-windows.debug.x86_64 = "res://bin/godot-box3d.dll"
-windows.release.x86_64 = "res://bin/godot-box3d.dll"
-macos.debug = "res://bin/libgodot-box3d.dylib"
-macos.release = "res://bin/libgodot-box3d.dylib"
+; Paths are relative to this descriptor so the addon can live anywhere in a project.
+macos.single.debug = "./bin/macos/libgodot-box3d.macos.template_debug.dylib"
+macos.single.release = "./bin/macos/libgodot-box3d.macos.template_release.dylib"
+
+ios.arm64.single.debug = "./bin/ios/libgodot-box3d.ios.template_debug.arm64.dylib"
+ios.arm64.single.release = "./bin/ios/libgodot-box3d.ios.template_release.arm64.dylib"
+
+windows.x86_64.single.debug = "./bin/windows/godot-box3d.windows.template_debug.x86_64.dll"
+windows.x86_64.single.release = "./bin/windows/godot-box3d.windows.template_release.x86_64.dll"
+
+linux.x86_64.single.debug = "./bin/linux/libgodot-box3d.linux.template_debug.x86_64.so"
+linux.x86_64.single.release = "./bin/linux/libgodot-box3d.linux.template_release.x86_64.so"
+linux.arm64.single.debug = "./bin/linux/libgodot-box3d.linux.template_debug.arm64.so"
+linux.arm64.single.release = "./bin/linux/libgodot-box3d.linux.template_release.arm64.so"
+
+android.x86_64.single.debug = "./bin/android/libgodot-box3d.android.template_debug.x86_64.so"
+android.x86_64.single.release = "./bin/android/libgodot-box3d.android.template_release.x86_64.so"
+android.arm64.single.debug = "./bin/android/libgodot-box3d.android.template_debug.arm64.so"
+android.arm64.single.release = "./bin/android/libgodot-box3d.android.template_release.arm64.so"
+
+web.wasm32.single.debug = "./bin/web/libgodot-box3d.web.template_debug.wasm32.nothreads.wasm"
+web.wasm32.single.release = "./bin/web/libgodot-box3d.web.template_release.wasm32.nothreads.wasm"
