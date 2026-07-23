@@ -20,6 +20,15 @@ For browser support, start with [`WEB_QUICKSTART.md`](WEB_QUICKSTART.md). The co
 | Web | wasm32 | debug, release | No threads; custom dynamic-link Web templates required |
 
 The portable profile embeds Box3D into the GDExtension and uses one Box3D worker. The Web build uses Emscripten 4.0.20 and WebAssembly SIMD128 by default.
+The SCons entry point regenerates godot-cpp's target-width-dependent wrappers
+for every invocation, so switching between 32-bit Web and 64-bit native builds
+in one checkout is safe without a manual clean.
+
+Godot treats layers and masks asymmetrically: a moving/querying object can scan
+a target layer even when the target does not scan the mover's layer. Box3D's
+native broad-phase filter is bilateral, so the wrapper reserves one of Box3D's
+otherwise-unused upper 32 filter bits to admit potential pairs, then applies
+Godot's exact 32-bit rules in its query and custom-contact callbacks.
 
 ## What works
 
@@ -28,7 +37,7 @@ The portable profile embeds Box3D into the GDExtension and uses one Box3D worker
 - Areas, including overlap events and gravity/damping overrides
 - Direct space-state queries: ray casts, point and shape intersection, shape casts (`cast_motion`), `collide_shape`, and `rest_info`
 - `body_test_motion`, so `CharacterBody3D` and `move_and_slide()` work
-- Collision exceptions, collision layers/masks, ray pickability, contact reports, and debug contacts
+- Collision exceptions, Godot-compatible asymmetric collision layers/masks, ray pickability, contact reports, and debug contacts
 - Joints: pin, hinge, and slider
 - Headless regression tests and an exported-app portable smoke scene
 

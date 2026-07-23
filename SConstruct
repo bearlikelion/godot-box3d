@@ -64,6 +64,13 @@ local_env = Environment(tools=["default"], PLATFORM="")
 if "build_profile" not in ARGUMENTS:
     local_env["build_profile"] = os.path.abspath("godot_cpp_build_profile.json")
 
+# godot-cpp writes generated built-in wrappers into one shared gen/ directory.
+# Their opaque sizes depend on the target pointer width, but target width is not
+# part of the generated-file dependency signature in the pinned 4.3 bindings.
+# Always regenerate before a platform build so a preceding wasm32 build cannot
+# leak 32-bit wrappers into Android, iOS, or desktop libraries (or vice versa).
+local_env["generate_bindings"] = True
+
 # The recommended browser configuration is deliberately single-threaded. It
 # avoids SharedArrayBuffer/cross-origin-isolation deployment requirements and
 # matches the .gdextension filenames committed in this repository. A caller may

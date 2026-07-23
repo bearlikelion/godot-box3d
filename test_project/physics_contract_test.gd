@@ -5,6 +5,7 @@ var contact_body_entered: bool = false
 var contact_body: ContactProbeBody
 var exception_body: RigidBody3D
 var damping_body: RigidBody3D
+var asymmetric_body: RigidBody3D
 
 
 class ContactProbeBody:
@@ -37,9 +38,16 @@ func _run() -> void:
 	await physics_frame
 	_test_multishape_motion_contract()
 
+	_setup_asymmetric_motion_contract()
+	await physics_frame
+	await physics_frame
+	_test_asymmetric_motion_contract()
+
+	_setup_asymmetric_physical_contract()
 	_setup_contact_and_exception_contract()
 	for i in 180:
 		await physics_frame
+	_test_asymmetric_physical_contract()
 	_test_contact_and_exception_contract()
 
 	_setup_area_damping_contract()
@@ -81,6 +89,7 @@ func _make_sphere_shape(radius: float) -> CollisionShape3D:
 func _setup_query_contract() -> void:
 	var target: StaticBody3D = StaticBody3D.new()
 	target.name = "QueryTarget"
+	target.collision_mask = 0
 	target.add_child(_make_box_shape(Vector3(2, 2, 2)))
 	root.add_child(target)
 
@@ -138,6 +147,59 @@ func _test_multishape_motion_contract() -> void:
 	var mover: CharacterBody3D = root.get_node("MultiShapeMover") as CharacterBody3D
 	var collision: KinematicCollision3D = mover.move_and_collide(Vector3(0.75, 0, 0))
 	_assert_result(collision != null, "body_test_motion checks enabled shapes after the first one")
+
+
+func _setup_asymmetric_motion_contract() -> void:
+	var wall: StaticBody3D = StaticBody3D.new()
+	wall.name = "AsymmetricMotionWall"
+	wall.position = Vector3(3, 0, 20)
+	wall.collision_layer = 1
+	wall.collision_mask = 0
+	wall.add_child(_make_box_shape(Vector3(0.5, 2, 2)))
+	root.add_child(wall)
+
+	var mover: CharacterBody3D = CharacterBody3D.new()
+	mover.name = "AsymmetricMotionMover"
+	mover.position = Vector3(0, 0, 20)
+	mover.collision_layer = 2
+	mover.collision_mask = 1
+	mover.add_child(_make_box_shape(Vector3.ONE))
+	root.add_child(mover)
+
+
+func _test_asymmetric_motion_contract() -> void:
+	var mover: CharacterBody3D = root.get_node("AsymmetricMotionMover") as CharacterBody3D
+	var collision: KinematicCollision3D = mover.move_and_collide(Vector3(4, 0, 0))
+	_assert_result(
+		collision != null,
+		"body_test_motion uses the moving body's mask without requiring the target mask"
+	)
+
+
+func _setup_asymmetric_physical_contract() -> void:
+	var platform: StaticBody3D = StaticBody3D.new()
+	platform.name = "AsymmetricPlatform"
+	platform.position = Vector3(-30, 0, 20)
+	platform.collision_layer = 1
+	platform.collision_mask = 0
+	platform.add_child(_make_box_shape(Vector3(4, 0.5, 4)))
+	root.add_child(platform)
+
+	asymmetric_body = RigidBody3D.new()
+	asymmetric_body.name = "AsymmetricBody"
+	asymmetric_body.position = Vector3(-30, 4, 20)
+	asymmetric_body.collision_layer = 2
+	asymmetric_body.collision_mask = 1
+	asymmetric_body.can_sleep = false
+	asymmetric_body.add_child(_make_sphere_shape(0.4))
+	root.add_child(asymmetric_body)
+
+
+func _test_asymmetric_physical_contract() -> void:
+	_assert_result(
+		asymmetric_body.global_position.y > 0.25,
+		"physical contacts occur when either body's mask scans the other body's layer"
+	)
 
 
 func _setup_contact_and_exception_contract() -> void:

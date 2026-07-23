@@ -1,5 +1,6 @@
 #include "box3d_shaped_object_impl_3d.hpp"
 
+#include "../misc/box3d_collision_filter.hpp"
 #include "../misc/type_conversions.hpp"
 #include "../shapes/box3d_box_shape_impl_3d.hpp"
 #include "../shapes/box3d_capsule_shape_impl_3d.hpp"
@@ -35,8 +36,7 @@ b3ShapeId create_box3d_shape(
 	}
 
 	b3ShapeDef def = b3DefaultShapeDef();
-	def.filter.categoryBits = (uint64_t)p_layer;
-	def.filter.maskBits = (uint64_t)p_mask;
+	def.filter = box3d_godot_shape_filter(p_layer, p_mask);
 	def.isSensor = p_is_sensor;
 	def.enableCustomFiltering = true;
 	// Box3D requires *both* sides of a sensor overlap to opt into sensor events (see
@@ -359,9 +359,7 @@ void Box3DShapedObjectImpl3D::_sync_shape_filters() {
 	if (!has_body_id()) {
 		return;
 	}
-	b3Filter filter = b3DefaultFilter();
-	filter.categoryBits = (uint64_t)collision_layer;
-	filter.maskBits = (uint64_t)collision_mask;
+	const b3Filter filter = box3d_godot_shape_filter(collision_layer, collision_mask);
 	for (auto& instance : shapes) {
 		if (instance.has_shape_id()) {
 			b3Shape_SetFilter(instance.get_shape_id(), filter, true);

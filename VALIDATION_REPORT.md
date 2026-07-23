@@ -1,12 +1,12 @@
 # Validation Report
 
-**Validation date:** July 21, 2026
+**Validation date:** July 23, 2026
 
 **Scope:** Portable Godot Box3D source port for Android, iOS, and Web
 
 ## Result summary
 
-The portable source and build system are internally consistent. Native compilation passed for the complete supported Android matrix plus Linux regression builds, and local Godot 4.7 Web compilation and Chrome runtime smoke tests passed for both debug and release profiles.
+The portable source and build system are internally consistent. Native compilation passed for the complete supported Android matrix plus Linux regression builds, local Godot 4.7 Web compilation and Chrome runtime smoke tests passed for both debug and release profiles, and the regenerated Android x86-64 extension passed the downstream Godot Light API 35 emulator gameplay lane.
 
 | Validation area | Result |
 |---|---|
@@ -29,7 +29,9 @@ The portable source and build system are internally consistent. Native compilati
 | Web extension compile/link | Passed for debug and release with Emscripten 4.0.20 |
 | Custom Godot Web template compile | Passed for Godot 4.7 debug and release, dynamic linking, no threads |
 | Godot runtime/headless tests | Passed locally with Godot 4.7 |
-| Physical-device/browser acceptance | Chrome Web smoke passed; mobile-device and cross-browser acceptance remain |
+| Godot-compatible asymmetric layer/mask tests | Passed for direct queries, `body_test_motion`, and physical contacts |
+| Android x86-64 emulator runtime | Passed downstream API 35 Box3D load, grounded character motion, and touch movement |
+| Physical-device/browser acceptance | Chrome Web smoke passed; physical mobile-device and cross-browser acceptance remain |
 
 ## Exact source inputs
 
@@ -61,10 +63,11 @@ These checksums identify the exact binaries produced during validation. They are
 
 | Artifact | Bytes | SHA-256[^1] |
 |---|---:|---|
-| `bin/android/libgodot-box3d.android.template_debug.arm64.so` | 1,506,024 | `7ecb372e16dca1bdb97bb15bf3bca62f5fe6df5bcf2ff28e48f8a6375d032070` |
-| `bin/android/libgodot-box3d.android.template_release.arm64.so` | 1,498,536 | `a3240c08871e0e0d668d7e1bd91de34b7fe8612f685f3cf4c62779ec51cc9034` |
-| `bin/android/libgodot-box3d.android.template_debug.x86_64.so` | 1,705,616 | `6566278758c5e5b8fd9ec3e223059166517b2313510546d971c93ea02d509451` |
-| `bin/android/libgodot-box3d.android.template_release.x86_64.so` | 1,719,456 | `f426e863462cbb04d8cc58c2368b2beec87ddc964049e230b1fc6bd7377f9fb9` |
+| `bin/android/libgodot-box3d.android.template_debug.arm64.so` | 1,506,184 | `cfd53f0c7d7a2a391dc78a0a4ea7fa2a7f005e3c27e4b7995d0a7353c788fe3c` |
+| `bin/android/libgodot-box3d.android.template_release.arm64.so` | 1,498,664 | `0980e40ffeefcf919f49f61811b567c610a196ba364edb18f4d527e56fc4c708` |
+| `bin/android/libgodot-box3d.android.template_debug.x86_64.so` | 1,705,792 | `fda034c09e038614a17dcae68954501984968661ff3d3db43eefaf6387d6704b` |
+| `bin/android/libgodot-box3d.android.template_release.x86_64.so` | 1,719,680 | `d8c22cc8203303b4a69529cbc9ce428b347187309a11be17513a772aafeaf484` |
+| `bin/macos/libgodot-box3d.macos.template_debug.dylib` | 1,701,240 | `395a85848d5eeec6f5eb93de95f02c72ffc0f5538900ed5f34d905c0e3465806` |
 | `bin/linux/libgodot-box3d.linux.template_debug.x86_64.so` | 1,707,032 | `5870746d16d91b6142cec6eeadf4e7eb4269bc6694576d496b7439f2f68e1387` |
 | `bin/linux/libgodot-box3d.linux.template_release.x86_64.so` | 1,804,960 | `6ad5ac19d7bbbd00c4e1a843adb6fccbca4e6a96368a098769480578a01d002e` |
 | `bin/web/libgodot-box3d.web.template_debug.wasm32.nothreads.wasm` | 952,226 | `e8029a59de546e73c0228af8674dc02b004d8113b4b25b2afffd8446fd1c5aa7` |
@@ -87,6 +90,15 @@ Real compilation exposed transitive-include assumptions that could vary by platf
 - Godot `LocalVector` in the convex and concave polygon implementations.
 
 These are source-correctness fixes, not platform conditionals, and should remain in every target branch.
+
+The July 23 follow-up also corrected two cross-platform/runtime defects:
+
+- Every SCons invocation regenerates godot-cpp bindings for the target pointer
+  width, preventing wasm32 opaque-type layouts from being reused by 64-bit
+  Android or desktop builds.
+- The wrapper reserves an internal Box3D filter bit to admit potential pairs,
+  then applies Godot's asymmetric 32-bit layer/mask semantics to queries,
+  `body_test_motion`, and physical contacts.
 
 ## Reproduction commands
 
@@ -134,7 +146,7 @@ The portable GitHub Actions workflow supplies the remaining platform-specific va
 The following are intentionally release gates rather than claims made by this repository:
 
 1. Install debug and release Android exports on a physical arm64 device.
-2. Launch the x86-64 debug export on an emulator when emulator support is part of the product matrix.
+2. Repeat the passing x86-64 API 35 downstream gameplay lane on CI or a second emulator host when emulator support becomes a release gate.
 3. Build, sign, install, suspend, resume, and terminate an iOS release export on physical hardware.
 4. Load both Web variants with the matching custom templates in the product's supported Chromium, Firefox, and Safari versions.
 5. Run `portable_smoke_test.tscn` on every target and retain screenshots/logs with `BUILD_MANIFEST.json`.

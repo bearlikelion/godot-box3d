@@ -44,6 +44,9 @@ bool should_report(b3ShapeId p_shape_id, const Box3DQueryFilter3D& p_filter, Box
 	if (object == nullptr) {
 		return false;
 	}
+	if ((object->get_collision_layer() & p_filter.collision_mask) == 0) {
+		return false;
+	}
 	const bool is_area = dynamic_cast<Box3DAreaImpl3D*>(object) != nullptr;
 	if (is_area && !p_filter.collide_with_areas) {
 		return false;
@@ -657,8 +660,7 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 	}
 
 	Box3DQueryFilter3D filter;
-	filter.filter.categoryBits = (uint64_t)p_body.get_collision_layer();
-	filter.filter.maskBits = (uint64_t)p_body.get_collision_mask();
+	filter.set_collision_mask(p_body.get_collision_mask());
 	filter.body_test_motion = true;
 	filter.exclude.insert(p_body.get_rid());
 	if (auto* body = dynamic_cast<Box3DBodyImpl3D*>(&p_body)) {

@@ -20,10 +20,10 @@ constexpr int SUB_STEP_COUNT = 4;
 
 using AreaSpaceOverrideMode = PhysicsServer3D::AreaSpaceOverrideMode;
 
-bool collision_layers_match(const Box3DShapedObjectImpl3D* p_a, const Box3DShapedObjectImpl3D* p_b) {
+bool collision_filters_interact(const Box3DShapedObjectImpl3D* p_a, const Box3DShapedObjectImpl3D* p_b) {
 	return p_a != nullptr && p_b != nullptr &&
-			(p_a->get_collision_mask() & p_b->get_collision_layer()) != 0 &&
-			(p_b->get_collision_mask() & p_a->get_collision_layer()) != 0;
+			((p_a->get_collision_mask() & p_b->get_collision_layer()) != 0 ||
+					(p_b->get_collision_mask() & p_a->get_collision_layer()) != 0);
 }
 
 Box3DShapedObjectImpl3D* object_from_shape(b3ShapeId p_shape_id) {
@@ -50,7 +50,7 @@ bool custom_filter_callback(b3ShapeId p_shape_a, b3ShapeId p_shape_b, void* p_co
 		return false;
 	}
 
-	return collision_layers_match(object_a, object_b);
+	return collision_filters_interact(object_a, object_b);
 }
 
 Vector3 contact_point_from_anchor(b3BodyId p_body_id, const b3Vec3& p_anchor) {

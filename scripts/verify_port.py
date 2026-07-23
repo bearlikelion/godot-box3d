@@ -286,6 +286,7 @@ def main() -> int:
             errors.append(f"SConstruct syntax error: {exc}")
         required_fragments = (
             'local_env["build_profile"] = os.path.abspath("godot_cpp_build_profile.json")',
+            'local_env["generate_bindings"] = True',
             'ARGUMENTS.get("platform") == "web"',
             'local_env["threads"] = False',
             'box3d_env.get("is_msvc", False)',
@@ -328,6 +329,39 @@ def main() -> int:
         errors.append("Box3D world creation must keep workerCount = 1 for the supported portable profile.")
     else:
         checks.append("Single-worker portable physics profile")
+
+    asymmetric_filter_fragments = {
+        REPO_ROOT / "src/misc/box3d_collision_filter.hpp": (
+            "BOX3D_GODOT_BROADPHASE_BIT",
+            "box3d_godot_shape_filter",
+            "box3d_godot_query_filter",
+        ),
+        REPO_ROOT / "src/spaces/box3d_space_3d.cpp": (
+            "collision_filters_interact",
+            "get_collision_mask() & p_b->get_collision_layer()) != 0 ||",
+        ),
+        REPO_ROOT / "src/spaces/box3d_physics_direct_space_state_3d.cpp": (
+            "object->get_collision_layer() & p_filter.collision_mask",
+            "filter.set_collision_mask(p_body.get_collision_mask())",
+        ),
+        REPO_ROOT / "test_project/physics_contract_test.gd": (
+            "body_test_motion uses the moving body's mask without requiring the target mask",
+            "physical contacts occur when either body's mask scans the other body's layer",
+        ),
+    }
+    asymmetric_filter_missing: list[str] = []
+    for path, fragments in asymmetric_filter_fragments.items():
+        source = path.read_text(encoding="utf-8") if path.is_file() else ""
+        for fragment in fragments:
+            if fragment not in source:
+                asymmetric_filter_missing.append(f"{path.relative_to(REPO_ROOT)}: {fragment}")
+    if asymmetric_filter_missing:
+        errors.append(
+            "Godot-compatible asymmetric collision filtering is incomplete: "
+            + "; ".join(asymmetric_filter_missing)
+        )
+    else:
+        checks.append("Godot-compatible asymmetric collision filtering")
 
     old_external = REPO_ROOT / "cmake/GodotBox3DExternalGodotCpp.cmake"
     if old_external.exists():
