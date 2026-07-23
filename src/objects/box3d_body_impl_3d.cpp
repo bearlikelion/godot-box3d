@@ -12,6 +12,11 @@ Box3DBodyImpl3D::~Box3DBodyImpl3D() {
 	}
 }
 
+void Box3DBodyImpl3D::set_space(Box3DSpace3D* p_space) {
+	clear_runtime_area_state();
+	Box3DShapedObjectImpl3D::set_space(p_space);
+}
+
 Box3DPhysicsDirectBodyState3D* Box3DBodyImpl3D::get_direct_state_or_null() {
 	if (direct_state == nullptr) {
 		direct_state = memnew(Box3DPhysicsDirectBodyState3D);
@@ -169,6 +174,18 @@ void Box3DBodyImpl3D::set_angular_damping(real_t p_damping) {
 	angular_damping = p_damping;
 	if (has_body_id()) {
 		b3Body_SetAngularDamping(body_id, (float)p_damping);
+	}
+}
+
+void Box3DBodyImpl3D::apply_runtime_area_state(const Vector3& p_total_gravity, real_t p_linear_damping, real_t p_angular_damping) {
+	effective_total_gravity = p_total_gravity;
+	effective_linear_damping = p_linear_damping;
+	effective_angular_damping = p_angular_damping;
+	runtime_area_state_valid = true;
+
+	if (has_body_id()) {
+		b3Body_SetLinearDamping(body_id, (float)p_linear_damping);
+		b3Body_SetAngularDamping(body_id, (float)p_angular_damping);
 	}
 }
 
@@ -377,4 +394,29 @@ void Box3DBodyImpl3D::pre_step() {
 	if (constant_torque != Vector3()) {
 		b3Body_ApplyTorque(body_id, godot_to_b3(constant_torque), false);
 	}
+}
+
+void Box3DBodyImpl3D::add_collision_exception(const RID& p_excepted_body) {
+	if (collision_exceptions.has(p_excepted_body)) {
+		return;
+	}
+	collision_exceptions.insert(p_excepted_body);
+	refilter_shapes();
+}
+
+void Box3DBodyImpl3D::remove_collision_exception(const RID& p_excepted_body) {
+	if (collision_exceptions.erase(p_excepted_body)) {
+		refilter_shapes();
+	}
+}
+
+bool Box3DBodyImpl3D::has_collision_exception(const RID& p_excepted_body) const {
+	return collision_exceptions.has(p_excepted_body);
+}
+
+void Box3DBodyImpl3D::add_contact(const Box3DBodyContact3D& p_contact) {
+	if (max_contacts_reported <= 0 || contacts.size() >= (uint32_t)max_contacts_reported) {
+		return;
+	}
+	contacts.push_back(p_contact);
 }

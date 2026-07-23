@@ -1,10 +1,12 @@
 extends SceneTree
 
-var frames: int = 0
+var failures: int = 0
 var body: RigidBody3D
 var ground: StaticBody3D
 
 func _initialize() -> void:
+	print("Active physics engine setting: ", ProjectSettings.get_setting("physics/3d/physics_engine"))
+
 	ground = StaticBody3D.new()
 	var ground_shape: CollisionShape3D = CollisionShape3D.new()
 	var box: BoxShape3D = BoxShape3D.new()
@@ -23,29 +25,36 @@ func _initialize() -> void:
 	body.position = Vector3(0, 2, 0)
 	root.add_child(body)
 
+	call_deferred("_run")
 
-func _process(delta: float) -> bool:
-	frames += 1
-	if frames == 300:
-		print("Body Y after 300 frames (5s): ", body.global_position.y)
-		print("Body linear velocity: ", body.linear_velocity)
-		if body.global_position.y > 0.9 and body.global_position.y < 1.1:
-			print("RESULT: PASS - body rested on ground near expected height (~1.0)")
-		else:
-			print("RESULT: FAIL - body did not rest at expected height")
 
-		# Raycast test: cast straight down from above the ground.
-		var space_state: PhysicsDirectSpaceState3D = get_root().get_world_3d().direct_space_state
-		var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(Vector3(3, 5, 3), Vector3(3, -5, 3))
-		var result: Dictionary = space_state.intersect_ray(query)
-		if result.has("position"):
-			print("Raycast hit position: ", result["position"])
-			if abs(result["position"].y - 0.0) < 0.1:
-				print("RESULT: PASS - raycast hit ground at expected height")
-			else:
-				print("RESULT: FAIL - raycast hit unexpected height")
-		else:
-			print("RESULT: FAIL - raycast did not hit anything")
+func _run() -> void:
+	for i in 300:
+		await physics_frame
 
-		quit()
-	return false
+	print("Body Y after 300 physics frames: ", body.global_position.y)
+	print("Body linear velocity: ", body.linear_velocity)
+	_assert_result(abs(body.global_position.y - 0.5) < 0.08, "body rested on ground near expected center height (~0.5)")
+
+	var space_state: PhysicsDirectSpaceState3D = get_root().get_world_3d().direct_space_state
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(Vector3(3, 5, 3), Vector3(3, -5, 3))
+	var result: Dictionary = space_state.intersect_ray(query)
+	if result.has("position"):
+		print("Raycast hit position: ", result["position"])
+		_assert_result(abs(result["position"].y - 0.0) < 0.1, "raycast hit ground at expected height")
+	else:
+		_assert_result(false, "raycast hit ground at expected height")
+
+	if failures == 0:
+		print("RESULT: PASS - settle checks passed")
+	else:
+		print("RESULT: FAIL - ", failures, " settle check(s) failed")
+	quit(1 if failures > 0 else 0)
+
+
+func _assert_result(condition: bool, message: String) -> void:
+	if condition:
+		print("PASS: ", message)
+	else:
+		failures += 1
+		print("FAIL: ", message)

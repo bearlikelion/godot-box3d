@@ -5,6 +5,7 @@
 #include <godot_cpp/classes/physics_direct_body_state3d.hpp>
 #include <godot_cpp/classes/physics_server3d_extension.hpp>
 #include <godot_cpp/classes/physics_server3d_rendering_server_handler.hpp>
+#include <godot_cpp/templates/hash_set.hpp>
 
 using namespace godot;
 
@@ -209,7 +210,7 @@ public:
 	void _joint_disable_collisions_between_bodies(const RID& p_joint, bool p_disable) override;
 	bool _joint_is_disabled_collisions_between_bodies(const RID& p_joint) const override;
 
-	// --- Soft bodies (non-goal: return invalid RID / no-op) ---
+	// --- Soft bodies (explicitly unsupported: warn and return inert defaults) ---
 	RID _soft_body_create() override;
 	void _soft_body_update_rendering_server(const RID& p_body, PhysicsServer3DRenderingServerHandler* p_rendering_server_handler) override;
 	void _soft_body_set_space(const RID& p_body, const RID& p_space) override;

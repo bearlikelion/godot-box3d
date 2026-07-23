@@ -1,0 +1,25 @@
+# Reproducible dependency and toolchain pins for the portable build.
+# This file is sourced by the Bash build scripts; keep values shell-safe.
+
+GODOT_COMPATIBILITY_MINIMUM="4.3"
+
+GODOT_CPP_REPOSITORY="https://github.com/godotengine/godot-cpp.git"
+GODOT_CPP_LABEL="godot-4.3-stable"
+GODOT_CPP_REF="fbbf9ec4efd8f1055d00edb8d926eef8ba4c2cce"
+
+BOX3D_REPOSITORY="https://github.com/erincatto/box3d.git"
+BOX3D_LABEL="v0.1.0"
+BOX3D_REF="8441b4a06d6d09dcfb0b0f704df4d847d1437b92"
+
+GODOT_ENGINE_REPOSITORY="https://github.com/godotengine/godot.git"
+GODOT_ENGINE_LABEL="4.7-stable"
+GODOT_ENGINE_REF="5b4e0cb0fd279832bbdd69fed5354d4e5ad26f88"
+
+SCONS_VERSION="4.8.1"
+ANDROID_NDK_VERSION="23.2.8568313"
+ANDROID_API_LEVEL="21"
+IOS_MIN_VERSION="12.0"
+EMSCRIPTEN_VERSION="4.0.20"
+EMSDK_REPOSITORY="https://github.com/emscripten-core/emsdk.git"
+EMSDK_LABEL="4.0.20"
+EMSDK_REF="e4fe26ef59168ff44f4c23c466e497bf60b3411e"

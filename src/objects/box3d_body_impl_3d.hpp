@@ -3,11 +3,26 @@
 #include "box3d_shaped_object_impl_3d.hpp"
 
 #include <godot_cpp/classes/physics_server3d.hpp>
+#include <godot_cpp/templates/hash_set.hpp>
+#include <godot_cpp/templates/local_vector.hpp>
 #include <godot_cpp/variant/callable.hpp>
 
 using namespace godot;
 
 class Box3DPhysicsDirectBodyState3D;
+
+struct Box3DBodyContact3D {
+	Vector3 position;
+	Vector3 normal;
+	Vector3 impulse;
+	RID collider;
+	uint64_t collider_id = 0;
+	int32_t local_shape = -1;
+	int32_t collider_shape = -1;
+	Vector3 collider_position;
+	Vector3 collider_velocity;
+	Vector3 collider_angular_velocity;
+};
 
 // RigidBody-facing wrapper: static/kinematic/dynamic bodies. Box3D requires a valid world
 // before a body can be created, so construction of the b3BodyId is deferred until
@@ -16,8 +31,11 @@ class Box3DPhysicsDirectBodyState3D;
 class Box3DBodyImpl3D final : public Box3DShapedObjectImpl3D {
 public:
 	using BodyMode = PhysicsServer3D::BodyMode;
+	using BodyDampMode = PhysicsServer3D::BodyDampMode;
 
 	~Box3DBodyImpl3D() override;
+
+	void set_space(Box3DSpace3D* p_space) override;
 
 	// Lazily creates (on first call) the PhysicsDirectBodyState3DExtension wrapper handed
 	// to scripts and to Godot core's move_and_slide(); reused for the object's lifetime.
@@ -47,6 +65,12 @@ public:
 
 	void set_linear_damping(real_t p_damping);
 
+	BodyDampMode get_linear_damp_mode() const { return linear_damp_mode; }
+
+	void set_linear_damp_mode(BodyDampMode p_mode) { linear_damp_mode = p_mode; }
+
+	real_t get_effective_linear_damping() const { return runtime_area_state_valid ? effective_linear_damping : linear_damping; }
+
 	real_t get_bounce() const { return bounce; }
 
 	void set_bounce(real_t p_bounce) { bounce = p_bounce; }
@@ -59,9 +83,23 @@ public:
 
 	void set_angular_damping(real_t p_damping);
 
+	BodyDampMode get_angular_damp_mode() const { return angular_damp_mode; }
+
+	void set_angular_damp_mode(BodyDampMode p_mode) { angular_damp_mode = p_mode; }
+
+	real_t get_effective_angular_damping() const { return runtime_area_state_valid ? effective_angular_damping : angular_damping; }
+
 	real_t get_gravity_scale() const { return gravity_scale; }
 
 	void set_gravity_scale(real_t p_scale);
+
+	bool has_runtime_area_state() const { return runtime_area_state_valid; }
+
+	Vector3 get_effective_total_gravity() const { return effective_total_gravity; }
+
+	void apply_runtime_area_state(const Vector3& p_total_gravity, real_t p_linear_damping, real_t p_angular_damping);
+
+	void clear_runtime_area_state() { runtime_area_state_valid = false; }
 
 	Vector3 get_linear_velocity() const;
 
@@ -144,6 +182,20 @@ public:
 
 	void set_contact_monitor_enabled(bool p_enabled) { contact_monitor_enabled = p_enabled; }
 
+	void add_collision_exception(const RID& p_excepted_body);
+
+	void remove_collision_exception(const RID& p_excepted_body);
+
+	bool has_collision_exception(const RID& p_excepted_body) const;
+
+	const HashSet<RID>& get_collision_exceptions() const { return collision_exceptions; }
+
+	void clear_contacts() { contacts.clear(); }
+
+	void add_contact(const Box3DBodyContact3D& p_contact);
+
+	const LocalVector<Box3DBodyContact3D>& get_contacts() const { return contacts; }
+
 protected:
 	b3BodyId _create_body_id(b3WorldId p_world_id) override;
 
@@ -165,6 +217,12 @@ private:
 
 	real_t linear_damping = 0.0;
 	real_t angular_damping = 0.0;
+	BodyDampMode linear_damp_mode = PhysicsServer3D::BODY_DAMP_MODE_COMBINE;
+	BodyDampMode angular_damp_mode = PhysicsServer3D::BODY_DAMP_MODE_COMBINE;
+	real_t effective_linear_damping = 0.0;
+	real_t effective_angular_damping = 0.0;
+	Vector3 effective_total_gravity;
+	bool runtime_area_state_valid = false;
 	real_t bounce = 0.0;
 	real_t friction = 1.0;
 	real_t gravity_scale = 1.0;
@@ -191,6 +249,8 @@ private:
 
 	int32_t max_contacts_reported = 0;
 	bool contact_monitor_enabled = false;
+	HashSet<RID> collision_exceptions;
+	LocalVector<Box3DBodyContact3D> contacts;
 
 	Box3DPhysicsDirectBodyState3D* direct_state = nullptr;
 };

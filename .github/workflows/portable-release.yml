@@ -1,0 +1,222 @@
+name: Portable Android iOS Web Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate source package
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/*.py
+          for script in scripts/*.sh; do bash -n "$script"; done
+          python3 scripts/verify_port.py
+
+  android:
+    needs: validate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: android-actions/setup-android@v4
+
+      - name: Set up pinned SCons
+        run: scripts/setup_python_build_env.sh
+
+      - name: Bootstrap dependencies
+        run: scripts/bootstrap_dependencies.sh
+
+      - name: Install pinned Android toolchain
+        run: scripts/setup_android_toolchain.sh
+
+      - name: Build Android matrix
+        env:
+          JOBS: 4
+        run: scripts/build_android.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: portable-android
+          path: bin/android/*
+          if-no-files-found: error
+
+  ios:
+    needs: validate
+    runs-on: macos-14
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up pinned SCons
+        run: scripts/setup_python_build_env.sh
+
+      - name: Bootstrap dependencies
+        run: scripts/bootstrap_dependencies.sh
+
+      - name: Build iOS matrix
+        env:
+          JOBS: 4
+        run: scripts/build_ios.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: portable-ios
+          path: bin/ios/*
+          if-no-files-found: error
+
+  web-extension:
+    needs: validate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up pinned SCons
+        run: scripts/setup_python_build_env.sh
+
+      - name: Bootstrap dependencies
+        run: scripts/bootstrap_dependencies.sh
+
+      - name: Install pinned Emscripten
+        run: scripts/setup_web_toolchain.sh
+
+      - name: Build Web extension matrix
+        env:
+          JOBS: 4
+        run: scripts/build_web.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: portable-web-extension
+          path: bin/web/*
+          if-no-files-found: error
+
+  web-templates:
+    needs: validate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git pkg-config
+
+      - name: Set up pinned SCons
+        run: scripts/setup_python_build_env.sh
+
+      - name: Install pinned Emscripten
+        run: scripts/setup_web_toolchain.sh
+
+      - name: Build dynamic-link Web templates
+        env:
+          JOBS: 4
+        run: scripts/build_web_templates.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: portable-web-templates
+          path: dist/web-export-templates/*
+          if-no-files-found: error
+
+  web-package:
+    needs: [web-extension, web-templates]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: portable-web-extension
+          path: bin/web
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: portable-web-templates
+          path: dist/web-export-templates
+
+      - name: Validate and package Web support
+        env:
+          SOURCE_DATE_EPOCH: "315532800"
+        run: |
+          python3 scripts/verify_port.py --platform web --require-binaries
+          python3 scripts/package_addon.py \
+            --mode bundle \
+            --platform web \
+            --web-templates-dir dist/web-export-templates \
+            --output dist/godot-box3d-web-release.zip
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: godot-box3d-web-release
+          path: dist/godot-box3d-web-release.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  package:
+    needs: [android, ios, web-extension, web-templates]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: portable-android
+          path: bin/android
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: portable-ios
+          path: bin/ios
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: portable-web-extension
+          path: bin/web
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: portable-web-templates
+          path: dist/web-export-templates
+
+      - name: Validate complete artifact matrix
+        run: |
+          python3 scripts/verify_port.py \
+            --platform android \
+            --platform ios \
+            --platform web \
+            --require-binaries
+
+      - name: Create the single developer release bundle
+        env:
+          SOURCE_DATE_EPOCH: "315532800"
+        run: |
+          python3 scripts/package_addon.py \
+            --mode bundle \
+            --platform android \
+            --platform ios \
+            --platform web \
+            --web-templates-dir dist/web-export-templates \
+            --output dist/godot-box3d-portable-release.zip
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: godot-box3d-portable-release
+          path: dist/godot-box3d-portable-release.zip
+          if-no-files-found: error
+          retention-days: 30

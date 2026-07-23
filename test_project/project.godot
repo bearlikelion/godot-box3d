@@ -16,7 +16,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 config/name="Box3D Test"
 config/features=PackedStringArray("4.7")
-run/main_scene="res://demo_scene.tscn"
+run/main_scene="res://portable_smoke_test.tscn"
 
 [physics]
 

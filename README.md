@@ -2,52 +2,165 @@
 
 A [GDExtension](https://docs.godotengine.org/en/stable/tutorials/scripting/gdextension/what_is_gdextension.html) that integrates [Box3D](https://github.com/erincatto/box3d), Erin Catto's 3D physics engine, into Godot 4 as a drop-in replacement for the built-in `PhysicsServer3D`.
 
-The structure of this extension is based on [godot-jolt](https://github.com/godot-jolt/godot-jolt), which pioneered swapping out Godot's 3D physics backend via GDExtension.
+The structure of this extension is based on [godot-jolt](https://github.com/godot-jolt/godot-jolt), which pioneered swapping Godot's 3D physics backend through GDExtension.
 
-> **Status: early and experimental.** Box3D itself is a young engine, and this extension is a work in progress. Expect missing features and rough edges.
+> **Status: early and experimental.** Box3D itself is young, and this wrapper still has missing features. Production adoption requires device/browser testing and performance budgets.
+
+For browser support, start with [`WEB_QUICKSTART.md`](WEB_QUICKSTART.md). The complete platform setup and release guide is [`MOBILE_WEB_INTEGRATION.md`](MOBILE_WEB_INTEGRATION.md).
+
+## Supported build matrix
+
+| Platform | Architectures | Variants | Notes |
+|---|---|---|---|
+| Linux | x86-64, arm64 | debug, release | Desktop regression target |
+| Windows | x86-64 | debug, release | Desktop target |
+| macOS | universal | debug, release | Desktop target |
+| Android | arm64, x86-64 | debug, release | NDK 23.2.8568313, API 21+ |
+| iOS | arm64 device | debug, release | macOS/Xcode required |
+| Web | wasm32 | debug, release | No threads; custom dynamic-link Web templates required |
+
+The portable profile embeds Box3D into the GDExtension and uses one Box3D worker. The Web build uses Emscripten 4.0.20 and WebAssembly SIMD128 by default.
+The SCons entry point regenerates godot-cpp's target-width-dependent wrappers
+for every invocation, so switching between 32-bit Web and 64-bit native builds
+in one checkout is safe without a manual clean.
+
+Godot treats layers and masks asymmetrically: a moving/querying object can scan
+a target layer even when the target does not scan the mover's layer. Box3D's
+native broad-phase filter is bilateral, so the wrapper reserves one of Box3D's
+otherwise-unused upper 32 filter bits to admit potential pairs, then applies
+Godot's exact 32-bit rules in its query and custom-contact callbacks.
 
 ## What works
 
 - Rigid, static, and kinematic bodies
-- Shapes: box, sphere, capsule, convex polygon, concave polygon (trimesh), heightmap, and world boundary
+- Shapes: box, sphere, capsule, cylinder, convex polygon, concave polygon (trimesh), heightmap, and world boundary
 - Areas, including overlap events and gravity/damping overrides
-- Direct space state queries: ray casts, point and shape intersection, shape casts (`cast_motion`), `collide_shape`, and `rest_info`
+- Direct space-state queries: ray casts, point and shape intersection, shape casts (`cast_motion`), `collide_shape`, and `rest_info`
 - `body_test_motion`, so `CharacterBody3D` and `move_and_slide()` work
+- Collision exceptions, Godot-compatible asymmetric collision layers/masks, ray pickability, contact reports, and debug contacts
 - Joints: pin, hinge, and slider
-- A small test project (`test_project/`) with demo and stress scenes
+- Headless regression tests and an exported-app portable smoke scene
 
-## What's left to do
+## Not yet implemented
 
-- Cylinder and separation ray shapes (not supported by Box3D)
+- Separation-ray shapes, which Box3D does not support
 - ConeTwist and Generic6DOF joints
 - `SoftBody3D`
-- Per-pair collision exceptions (use collision layers/masks for now)
-- Changing a `PinJoint3D` anchor after creation (recreate the joint instead)
-- More platforms and architectures (currently Linux, Windows, and macOS builds)
-- Performance benchmarking and tuning
-- Documentation
+- Changing a `PinJoint3D` anchor after creation; recreate the joint instead
+- Production-scale mobile/browser performance tuning
 
 ## Requirements
 
 - Godot 4.3 or newer
+- Godot 4.7 when using the supplied prebuilt Web templates
+- Python 3 and Git
+- Platform SDK/toolchain for the intended export target
 
-## Building
+Dependency commits and toolchain versions are pinned in [`dependencies.lock`](dependencies.lock).
+The reduced binding set used by portable builds is pinned in [`godot_cpp_build_profile.json`](godot_cpp_build_profile.json).
+Other Godot versions require matching custom Web templates and their own validation pass.
 
-The project builds with CMake:
+## Web quick start
 
-```sh
-cmake -B build
-cmake --build build
+The fastest route is the prebuilt `godot-box3d-web-release` artifact from the **Portable Android iOS Web Release** workflow. Copy its `addons/godot-box3d` directory into the project, select **Box3D Physics (Extension)** as the 3D physics engine, and configure the supplied custom debug/release templates in the Web export preset.
+
+To build the complete Web bundle from source with pinned tools and dependencies:
+
+```bash
+MAX_JOBS=4 scripts/quickstart_web.sh
 ```
 
-The resulting library is placed in `bin/` and loaded via `godot-box3d.gdextension`. Copy `bin/` and the `.gdextension` file into your project, then select the Box3D physics server in your project settings.
+The output is `dist/godot-box3d-web-release.zip`. The first run builds matching Godot 4.7 Web templates and can take a while; later builds are incremental.
 
-## Contributing
+Serve an exported project with the required development headers:
 
-Help wanted! This is a big surface area for one person, and contributions of any size are very welcome: missing features from the list above, bug reports with reproduction scenes, benchmarks, documentation, or just trying it in your project and reporting what breaks. Open an issue or a pull request.
+```bash
+python3 scripts/serve_web_export.py /path/to/export --port 8060
+```
+
+See [`WEB_QUICKSTART.md`](WEB_QUICKSTART.md) for the exact project layout, export settings, and automated browser smoke test.
+
+## Build other platforms
+
+Prepare the local SCons environment and exact source dependencies:
+
+```bash
+scripts/setup_python_build_env.sh
+scripts/bootstrap_dependencies.sh
+python3 scripts/verify_port.py --require-dependencies
+```
+
+Build a desktop development binary for the host platform:
+
+```bash
+scons platform=linux target=template_debug arch=x86_64
+```
+
+For Android and iOS, use the platform scripts:
+
+```bash
+scripts/build_android.sh
+scripts/build_ios.sh
+```
+
+The iOS script must run on macOS.
+
+See [`MOBILE_WEB_INTEGRATION.md`](MOBILE_WEB_INTEGRATION.md) for exact setup, application integration, CI, packaging, and release validation instructions.
+
+## Validation snapshot
+
+The complete Android matrix has been cross-compiled with the pinned NDK: arm64 and x86-64, debug and release. Linux x86-64 debug and release also compile and link. Web debug/release side modules and matching Godot 4.7 templates compile, and the exported smoke scene passes in Chrome. iOS compilation plus physical-device and cross-browser acceptance remain. See [`VALIDATION_REPORT.md`](VALIDATION_REPORT.md).
+
+## Install in a Godot project
+
+Copy the complete addon tree into the project:
+
+```text
+addons/godot-box3d/
+├── godot-box3d.gdextension
+└── bin/<platform>/...
+```
+
+Then select **Box3D Physics (Extension)** under **Project Settings → Physics → 3D → Physics Engine** and restart the editor.
+
+## Package a portable release
+
+After all mobile/Web binaries and Web templates are built:
+
+```bash
+python3 scripts/package_addon.py \
+  --mode bundle \
+  --platform android \
+  --platform ios \
+  --platform web \
+  --web-templates-dir dist/web-export-templates \
+  --output dist/godot-box3d-portable-release.zip
+```
+
+The GitHub Actions workflow at `.github/workflows/portable-release.yml` automates the complete build and emits the same single release bundle.
+
+## Test project
+
+Run the desktop headless suite:
+
+```bash
+scripts/run_headless_tests.sh
+```
+
+Open `test_project/portable_smoke_test.tscn` as the main scene for exported Android, iOS, and Web acceptance testing. It checks backend registration, falling-body contact, an area event, and hinge movement, and displays the result on screen.
+
+## CMake
+
+CMake remains available as a secondary build path for IDEs and existing toolchain integrations:
+
+```bash
+scripts/bootstrap_dependencies.sh
+cmake -S . -B build -G Ninja
+cmake --build build --parallel
+```
+
+SCons is the recommended path for Android, iOS, and Web because it follows Godot's official platform toolchains and filename conventions.
 
 ## License
 
-MIT. See [LICENSE](LICENSE) for details.
-
-Box3D is licensed under the [MIT license](https://github.com/erincatto/box3d/blob/main/LICENSE). This project takes structural inspiration from [godot-jolt](https://github.com/godot-jolt/godot-jolt), also MIT licensed.
+MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

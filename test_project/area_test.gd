@@ -1,6 +1,6 @@
 extends SceneTree
 
-var frames: int = 0
+var failures: int = 0
 var body: RigidBody3D
 var area: Area3D
 var entered: bool = false
@@ -39,14 +39,17 @@ func _initialize() -> void:
 	body.linear_velocity = Vector3(0, -5, 0)
 	root.add_child(body)
 
+	call_deferred("_run")
 
-func _process(delta: float) -> bool:
-	frames += 1
-	if frames == 600:
-		print("Entered: ", entered, " Exited: ", exited)
-		if entered and exited:
-			print("RESULT: PASS - area entered and exited signals fired")
-		else:
-			print("RESULT: FAIL - area monitoring signals did not fire as expected")
-		quit()
-	return false
+
+func _run() -> void:
+	for i in 600:
+		await physics_frame
+
+	print("Entered: ", entered, " Exited: ", exited)
+	if entered and exited:
+		print("RESULT: PASS - area entered and exited signals fired")
+	else:
+		failures += 1
+		print("RESULT: FAIL - area monitoring signals did not fire as expected")
+	quit(1 if failures > 0 else 0)

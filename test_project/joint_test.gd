@@ -1,6 +1,6 @@
 extends SceneTree
 
-var frames: int = 0
+var failures: int = 0
 var anchor: StaticBody3D
 var door: RigidBody3D
 var hinge: HingeJoint3D
@@ -23,6 +23,7 @@ func _initialize() -> void:
 	door.add_child(door_shape)
 	door.position = Vector3(1, 0, 0)
 	door.gravity_scale = 0.0
+	door.can_sleep = false
 	root.add_child(door)
 
 	hinge = HingeJoint3D.new()
@@ -31,22 +32,28 @@ func _initialize() -> void:
 	hinge.node_b = hinge.get_path_to(door)
 	hinge.position = Vector3(0, 0, 0)
 
-	await process_frame
-	await process_frame
-	# Apply an angular impulse to swing the door.
+	call_deferred("_run")
+
+
+func _run() -> void:
+	for i in 2:
+		await physics_frame
+
 	door.apply_torque_impulse(Vector3(0, 0, 3.0))
 
+	var max_rotation: float = 0.0
+	for i in 90:
+		await physics_frame
+		max_rotation = maxf(max_rotation, absf(door.rotation.z))
 
-func _process(delta: float) -> bool:
-	frames += 1
-	if frames == 60:
-		print("Door position: ", door.global_position)
-		print("Door rotation Z (deg): ", rad_to_deg(door.rotation.z))
-		var dist_from_anchor: float = door.global_position.distance_to(Vector3(0, 0, 0))
-		print("Distance from anchor: ", dist_from_anchor)
-		if abs(door.rotation.z) > 0.05 and dist_from_anchor < 1.5:
-			print("RESULT: PASS - hinge joint constrained rotation around anchor")
-		else:
-			print("RESULT: FAIL - hinge joint did not behave as expected")
-		quit()
-	return false
+	print("Door position: ", door.global_position)
+	print("Door rotation Z (deg): ", rad_to_deg(door.rotation.z))
+	print("Maximum rotation Z (deg): ", rad_to_deg(max_rotation))
+	var dist_from_anchor: float = door.global_position.distance_to(Vector3(0, 0, 0))
+	print("Distance from anchor: ", dist_from_anchor)
+	if max_rotation > 0.05 and dist_from_anchor < 1.5:
+		print("RESULT: PASS - hinge joint constrained rotation around anchor")
+	else:
+		failures += 1
+		print("RESULT: FAIL - hinge joint did not behave as expected")
+	quit(1 if failures > 0 else 0)

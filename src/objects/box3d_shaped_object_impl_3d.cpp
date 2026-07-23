@@ -1,10 +1,12 @@
 #include "box3d_shaped_object_impl_3d.hpp"
 
+#include "../misc/box3d_collision_filter.hpp"
 #include "../misc/type_conversions.hpp"
 #include "../shapes/box3d_box_shape_impl_3d.hpp"
 #include "../shapes/box3d_capsule_shape_impl_3d.hpp"
 #include "../shapes/box3d_concave_polygon_shape_impl_3d.hpp"
 #include "../shapes/box3d_convex_polygon_shape_impl_3d.hpp"
+#include "../shapes/box3d_cylinder_shape_impl_3d.hpp"
 #include "../shapes/box3d_heightmap_shape_impl_3d.hpp"
 #include "../shapes/box3d_shape_impl_3d.hpp"
 #include "../shapes/box3d_sphere_shape_impl_3d.hpp"
@@ -26,7 +28,6 @@ b3ShapeId create_box3d_shape(
 		uint32_t p_layer,
 		uint32_t p_mask,
 		bool p_is_sensor,
-		void* p_user_data,
 		float p_friction,
 		float p_restitution) {
 	Box3DShapeImpl3D* shape = p_instance.get_shape();
@@ -35,16 +36,16 @@ b3ShapeId create_box3d_shape(
 	}
 
 	b3ShapeDef def = b3DefaultShapeDef();
-	def.userData = p_user_data;
-	def.filter.categoryBits = (uint64_t)p_layer;
-	def.filter.maskBits = (uint64_t)p_mask;
+	def.filter = box3d_godot_shape_filter(p_layer, p_mask);
 	def.isSensor = p_is_sensor;
+	def.enableCustomFiltering = true;
 	// Box3D requires *both* sides of a sensor overlap to opt into sensor events (see
 	// b3ShapeDef::enableSensorEvents doc comment: "This applies to sensors and
 	// non-sensors."), so every shape enables it, not just the sensor side, or Godot's
 	// Area3D body_entered/body_exited would never fire.
 	def.enableSensorEvents = true;
 	def.enableContactEvents = !p_is_sensor;
+	def.enableHitEvents = !p_is_sensor;
 	def.density = 1.0f;
 	def.baseMaterial = b3DefaultSurfaceMaterial();
 	def.baseMaterial.friction = p_friction;
@@ -82,6 +83,21 @@ b3ShapeId create_box3d_shape(
 			const b3Transform box_transform = godot_to_b3_transform(local);
 			b3BoxHull box_hull = b3MakeTransformedBoxHull((float)half.x, (float)half.y, (float)half.z, box_transform);
 			return b3CreateHullShape(p_body_id, &def, &box_hull.base);
+		}
+
+		case PhysicsServer3D::SHAPE_CYLINDER: {
+			auto* cylinder_shape = static_cast<Box3DCylinderShapeImpl3D*>(shape);
+			const float height = (float)cylinder_shape->get_height();
+			b3HullData* cylinder = b3CreateCylinder(
+					height,
+					(float)cylinder_shape->get_radius(),
+					-0.5f * height,
+					Box3DCylinderShapeImpl3D::HULL_SIDES);
+			ERR_FAIL_NULL_V(cylinder, b3_nullShapeId);
+			const b3Transform cylinder_transform = godot_to_b3_transform(local);
+			const b3ShapeId shape_id = b3CreateTransformedHullShape(p_body_id, &def, cylinder, cylinder_transform, b3Vec3{1.0f, 1.0f, 1.0f});
+			b3DestroyHull(cylinder);
+			return shape_id;
 		}
 
 		case PhysicsServer3D::SHAPE_CONVEX_POLYGON: {
@@ -169,6 +185,16 @@ void Box3DShapedObjectImpl3D::set_transform(const Transform3D& p_transform) {
 		const b3Transform t = godot_to_b3_transform(p_transform);
 		b3Body_SetTransform(body_id, t.p, t.q);
 	}
+}
+
+void Box3DShapedObjectImpl3D::set_collision_layer(uint32_t p_layer) {
+	Box3DObjectImpl3D::set_collision_layer(p_layer);
+	_sync_shape_filters();
+}
+
+void Box3DShapedObjectImpl3D::set_collision_mask(uint32_t p_mask) {
+	Box3DObjectImpl3D::set_collision_mask(p_mask);
+	_sync_shape_filters();
 }
 
 void Box3DShapedObjectImpl3D::add_shape(Box3DShapeImpl3D* p_shape, const Transform3D& p_transform, bool p_disabled) {
@@ -286,6 +312,39 @@ void Box3DShapedObjectImpl3D::rebuild_shapes() {
 	}
 }
 
+void Box3DShapedObjectImpl3D::refilter_shapes() {
+	if (!has_body_id()) {
+		return;
+	}
+	for (auto& instance : shapes) {
+		if (!instance.has_shape_id()) {
+			continue;
+		}
+		const b3ShapeId shape_id = instance.get_shape_id();
+		const b3Filter original_filter = b3Shape_GetFilter(shape_id);
+		b3Filter transient_filter = original_filter;
+		transient_filter.groupIndex = original_filter.groupIndex == 1 ? 2 : 1;
+		// b3Shape_SetFilter returns early when all bits are unchanged. A transient group
+		// change forces b3ResetProxy(), after which the original public filter is restored.
+		b3Shape_SetFilter(shape_id, transient_filter, true);
+		b3Shape_SetFilter(shape_id, original_filter, true);
+	}
+}
+
+int32_t Box3DShapedObjectImpl3D::find_shape_index(b3ShapeId p_shape_id) const {
+	if (B3_IS_NULL(p_shape_id)) {
+		return -1;
+	}
+	for (int32_t i = 0; i < (int32_t)shapes.size(); i++) {
+		if (shapes[i].get_shape_id().index1 == p_shape_id.index1 &&
+				shapes[i].get_shape_id().world0 == p_shape_id.world0 &&
+				shapes[i].get_shape_id().generation == p_shape_id.generation) {
+			return i;
+		}
+	}
+	return -1;
+}
+
 void Box3DShapedObjectImpl3D::_destroy_body_id() {
 	if (has_body_id()) {
 		for (auto& instance : shapes) {
@@ -296,11 +355,23 @@ void Box3DShapedObjectImpl3D::_destroy_body_id() {
 	}
 }
 
+void Box3DShapedObjectImpl3D::_sync_shape_filters() {
+	if (!has_body_id()) {
+		return;
+	}
+	const b3Filter filter = box3d_godot_shape_filter(collision_layer, collision_mask);
+	for (auto& instance : shapes) {
+		if (instance.has_shape_id()) {
+			b3Shape_SetFilter(instance.get_shape_id(), filter, true);
+		}
+	}
+}
+
 void Box3DShapedObjectImpl3D::_create_shape_instance(Box3DShapeInstance3D& p_instance) {
 	if (p_instance.has_shape_id() || !has_body_id()) {
 		return;
 	}
-	const b3ShapeId shape_id = create_box3d_shape(body_id, p_instance, collision_layer, collision_mask, _is_sensor_body(), &p_instance, _get_shape_friction(), _get_shape_restitution());
+	const b3ShapeId shape_id = create_box3d_shape(body_id, p_instance, collision_layer, collision_mask, _is_sensor_body(), _get_shape_friction(), _get_shape_restitution());
 	p_instance.set_shape_id(shape_id);
 }
 
