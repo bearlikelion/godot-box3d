@@ -9,7 +9,7 @@ The port adds the following build and packaging support while preserving the exi
 | Target | Architectures | Build variants | Output format | Status in this source kit |
 |---|---|---|---|---|
 | Android | arm64, x86-64 | template debug, template release | `.so` | Implementation/CI complete; all four variants cross-compiled during validation |
-| iOS | arm64 device | template debug, template release | `.dylib` | Implementation/CI complete; macOS compile and device acceptance remain |
+| iOS | arm64 device; arm64/x86-64 simulator | template debug, template release | `.xcframework` | Compilation/package validation passed; Godot export and device acceptance remain |
 | Web | wasm32, no threads | template debug, template release | side-module `.wasm` | Debug/release side modules, custom templates, and local Chrome smoke passed; cross-browser acceptance remains |
 
 The portable profile keeps Box3D at one worker. This matches the existing source code and avoids introducing a new thread scheduler into mobile and browser exports. Web builds are intentionally single-threaded, so they do not require `SharedArrayBuffer` or a worker-enabled Godot export template. Serve extension-enabled exports with the opener/embedder headers described below.
@@ -54,7 +54,7 @@ The main integration points are:
 | `.gitmodules` | Adds `godot-cpp` as a source dependency alongside Box3D. |
 | `scripts/bootstrap_dependencies.sh` | Clones and checks out the exact Box3D and `godot-cpp` revisions. |
 | `scripts/build_android.sh` | Builds Android arm64 and x86-64, debug and release. |
-| `scripts/build_ios.sh` | Builds iOS arm64, debug and release. |
+| `scripts/build_ios.sh` | Builds device and universal-simulator debug/release binaries and packages XCFrameworks. |
 | `scripts/build_web.sh` | Builds single-threaded wasm32 side modules, debug and release. |
 | `scripts/build_web_templates.sh` | Builds matching dynamic-link-enabled Godot Web templates. |
 | `scripts/quickstart_web.sh` | Sets up, builds, validates, and packages all Web support in one command. |
@@ -174,18 +174,27 @@ scripts/bootstrap_dependencies.sh
 scripts/build_ios.sh
 ```
 
-The script validates the iPhoneOS SDK with `xcrun` and builds both variants for arm64 devices.
+The script validates the iPhoneOS and simulator SDKs with `xcrun`, builds arm64
+device and universal arm64/x86-64 simulator variants, and packages each
+debug/release pair into one XCFramework. The iOS 14 deployment target is applied
+to compilation and final linking and is verified from every Mach-O slice.
 
 ### iOS outputs
 
 ```text
-bin/ios/libgodot-box3d.ios.template_debug.arm64.dylib
-bin/ios/libgodot-box3d.ios.template_release.arm64.dylib
+bin/ios/libgodot-box3d.ios.template_debug.xcframework
+bin/ios/libgodot-box3d.ios.template_release.xcframework
 ```
 
-The Godot iOS exporter is responsible for embedding and signing the selected dynamic library as part of the generated Xcode project. Do not ad-hoc sign the GDExtension before Godot export unless your organization's signing pipeline explicitly requires it.
+Each XCFramework contains an arm64 iPhoneOS dylib and an arm64/x86-64 simulator
+dylib. Godot selects the platform slice and its iOS exporter converts embedded
+dylibs into frameworks before Xcode signing. Do not ad-hoc sign the
+GDExtension before Godot export unless the organization's signing pipeline
+explicitly requires it.
 
-The supplied descriptor targets physical arm64 devices. Simulator libraries are intentionally not part of the supported release matrix. A simulator build can be added later with Godot's `ios_simulator=yes` SCons option and separate `.gdextension` feature tags, but it must not replace the device library.
+Run both a simulator export and a signed physical-device export. Simulator
+success is fast integration feedback, not evidence for device performance,
+thermal behavior, lifecycle, or App Store signing.
 
 ## 8. Web build and integration
 
@@ -373,7 +382,14 @@ python3 scripts/verify_port.py \
 
 ### Validation completed for this repository
 
-The complete Android arm64/x86-64 debug/release matrix and Linux x86-64 debug/release builds compiled and linked from the pinned sources. Web debug/release side modules, matching Godot 4.7 templates, and local Chrome smoke tests also passed. Architecture metadata and the `godot_box3d_main` export were verified. iOS compilation and physical-device/cross-browser acceptance remain target-environment gates. See `VALIDATION_REPORT.md` for checksums and exact details.
+The complete Android arm64/x86-64 debug/release matrix and Linux x86-64
+debug/release builds compiled and linked from the pinned sources. Web
+debug/release side modules, matching Godot 4.7 templates, and local Chrome
+smoke tests also passed. iOS arm64-device and universal-simulator
+debug/release XCFrameworks compile and pass architecture/deployment-target
+inspection. Physical-device and cross-browser acceptance remain
+target-environment gates. See `VALIDATION_REPORT.md` for checksums and exact
+details.
 
 ### Desktop regression tests
 

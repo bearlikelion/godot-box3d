@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import plistlib
 import re
 import struct
 import sys
@@ -21,8 +22,8 @@ EXPECTED_LIBRARIES: dict[str, dict[str, str]] = {
         "android.x86_64.single.release": "./bin/android/libgodot-box3d.android.template_release.x86_64.so",
     },
     "ios": {
-        "ios.arm64.single.debug": "./bin/ios/libgodot-box3d.ios.template_debug.arm64.dylib",
-        "ios.arm64.single.release": "./bin/ios/libgodot-box3d.ios.template_release.arm64.dylib",
+        "ios.debug": "./bin/ios/libgodot-box3d.ios.template_debug.xcframework",
+        "ios.release": "./bin/ios/libgodot-box3d.ios.template_release.xcframework",
     },
     "web": {
         "web.wasm32.single.debug": "./bin/web/libgodot-box3d.web.template_debug.wasm32.nothreads.wasm",
@@ -52,6 +53,11 @@ ELF_MACHINE = {
     "x86_64": 62,  # EM_X86_64
 }
 MACHO_CPU_TYPE_ARM64 = 0x0100000C
+MACHO_CPU_TYPE_X86_64 = 0x01000007
+MACHO_FILETYPE_DYLIB = 6
+MACHO_LC_BUILD_VERSION = 0x32
+MACHO_PLATFORM_IOS = 2
+MACHO_PLATFORM_IOS_SIMULATOR = 7
 PE_MACHINE_AMD64 = 0x8664
 
 
@@ -158,6 +164,200 @@ def _inspect_macho(path: Path, feature_tag: str, data: bytes) -> str | None:
     return None
 
 
+def _decode_macho_version(value: int) -> tuple[int, int, int]:
+    return (value >> 16, (value >> 8) & 0xFF, value & 0xFF)
+
+
+def _parse_version(value: str) -> tuple[int, int, int]:
+    components = value.split(".")
+    if not components or len(components) > 3 or any(not item.isdigit() for item in components):
+        raise ValueError(f"invalid version: {value!r}")
+    numbers = [int(item) for item in components]
+    numbers.extend([0] * (3 - len(numbers)))
+    return tuple(numbers)
+
+
+def _thin_macho_build(
+    data: bytes,
+) -> tuple[int, int, tuple[int, int, int]] | str:
+    if len(data) < 32 or data[:4] != b"\xcf\xfa\xed\xfe":
+        return "slice is not a 64-bit little-endian Mach-O binary"
+
+    cpu_type, file_type, command_count, command_bytes = struct.unpack_from("<I4xIII", data, 4)
+    if file_type != MACHO_FILETYPE_DYLIB:
+        return f"Mach-O file type is {file_type}, expected MH_DYLIB ({MACHO_FILETYPE_DYLIB})"
+
+    offset = 32
+    command_end = offset + command_bytes
+    if command_end > len(data):
+        return "Mach-O load-command region exceeds the binary"
+
+    for _ in range(command_count):
+        if offset + 8 > command_end:
+            return "Mach-O load command header is truncated"
+        command, command_size = struct.unpack_from("<II", data, offset)
+        if command_size < 8 or offset + command_size > command_end:
+            return "Mach-O load command has an invalid size"
+        if command == MACHO_LC_BUILD_VERSION:
+            if command_size < 24:
+                return "Mach-O LC_BUILD_VERSION command is truncated"
+            platform, minimum_os = struct.unpack_from("<II", data, offset + 8)
+            return cpu_type, platform, _decode_macho_version(minimum_os)
+        offset += command_size
+
+    return "Mach-O binary has no LC_BUILD_VERSION command"
+
+
+def _macho_slices(data: bytes) -> list[bytes] | str:
+    if data[:4] == b"\xcf\xfa\xed\xfe":
+        return [data]
+
+    fat_formats = {
+        b"\xca\xfe\xba\xbe": (">", False),
+        b"\xbe\xba\xfe\xca": ("<", False),
+        b"\xca\xfe\xba\xbf": (">", True),
+        b"\xbf\xba\xfe\xca": ("<", True),
+    }
+    format_info = fat_formats.get(data[:4])
+    if not format_info or len(data) < 8:
+        return "binary is neither a thin 64-bit Mach-O nor a supported fat Mach-O"
+
+    endian, is_64_bit = format_info
+    architecture_count = struct.unpack_from(endian + "I", data, 4)[0]
+    entry_size = 32 if is_64_bit else 20
+    table_end = 8 + architecture_count * entry_size
+    if architecture_count == 0 or table_end > len(data):
+        return "fat Mach-O architecture table is invalid"
+
+    slices: list[bytes] = []
+    for index in range(architecture_count):
+        entry_offset = 8 + index * entry_size
+        if is_64_bit:
+            _, _, slice_offset, slice_size = struct.unpack_from(endian + "IIQQ", data, entry_offset)
+        else:
+            _, _, slice_offset, slice_size = struct.unpack_from(endian + "IIII", data, entry_offset)
+        slice_end = slice_offset + slice_size
+        if slice_size == 0 or slice_end > len(data):
+            return "fat Mach-O slice is outside the binary"
+        slices.append(data[slice_offset:slice_end])
+    return slices
+
+
+def inspect_ios_xcframework(path: Path, minimum_version: str) -> tuple[list[str], int]:
+    errors: list[str] = []
+    plist_path = path / "Info.plist"
+    if not plist_path.is_file():
+        return ["XCFramework is missing Info.plist"], 0
+
+    try:
+        plist = plistlib.loads(plist_path.read_bytes())
+    except (OSError, plistlib.InvalidFileException) as exc:
+        return [f"could not parse XCFramework Info.plist: {exc}"], 0
+
+    libraries = plist.get("AvailableLibraries")
+    if not isinstance(libraries, list):
+        return ["XCFramework Info.plist has no AvailableLibraries array"], 0
+
+    try:
+        expected_minimum = _parse_version(minimum_version)
+    except ValueError as exc:
+        return [str(exc)], 0
+
+    expected_slices = {
+        ("ios", ""): ({MACHO_CPU_TYPE_ARM64}, {"arm64"}, MACHO_PLATFORM_IOS),
+        (
+            "ios",
+            "simulator",
+        ): (
+            {MACHO_CPU_TYPE_ARM64, MACHO_CPU_TYPE_X86_64},
+            {"arm64", "x86_64"},
+            MACHO_PLATFORM_IOS_SIMULATOR,
+        ),
+    }
+    seen: set[tuple[str, str]] = set()
+    inspected_binary_count = 0
+
+    for library in libraries:
+        if not isinstance(library, dict):
+            errors.append("XCFramework AvailableLibraries contains a non-dictionary entry")
+            continue
+        platform = str(library.get("SupportedPlatform", ""))
+        variant = str(library.get("SupportedPlatformVariant", ""))
+        key = (platform, variant)
+        expected = expected_slices.get(key)
+        if expected is None:
+            errors.append(f"XCFramework contains unsupported platform slice {key!r}")
+            continue
+        if key in seen:
+            errors.append(f"XCFramework contains duplicate platform slice {key!r}")
+            continue
+        seen.add(key)
+
+        expected_cpu_types, expected_architectures, expected_platform = expected
+        architectures = set(library.get("SupportedArchitectures", []))
+        if architectures != expected_architectures:
+            errors.append(
+                f"XCFramework slice {key!r} architectures are {sorted(architectures)!r}; "
+                f"expected {sorted(expected_architectures)!r}"
+            )
+
+        identifier = str(library.get("LibraryIdentifier", ""))
+        binary_path = str(library.get("BinaryPath", ""))
+        if (
+            not identifier
+            or not binary_path
+            or Path(identifier).is_absolute()
+            or Path(binary_path).is_absolute()
+            or ".." in Path(identifier).parts
+            or ".." in Path(binary_path).parts
+        ):
+            errors.append(f"XCFramework slice {key!r} has an unsafe library path")
+            continue
+
+        binary = path / identifier / binary_path
+        if not binary.is_file() or binary.stat().st_size == 0:
+            errors.append(f"XCFramework slice {key!r} binary is missing or empty: {binary}")
+            continue
+
+        slices = _macho_slices(binary.read_bytes())
+        if isinstance(slices, str):
+            errors.append(f"XCFramework slice {key!r}: {slices}")
+            continue
+
+        actual_cpu_types: set[int] = set()
+        for macho_slice in slices:
+            build = _thin_macho_build(macho_slice)
+            if isinstance(build, str):
+                errors.append(f"XCFramework slice {key!r}: {build}")
+                continue
+            cpu_type, macho_platform, encoded_minimum = build
+            actual_cpu_types.add(cpu_type)
+            if macho_platform != expected_platform:
+                errors.append(
+                    f"XCFramework slice {key!r} Mach-O platform is {macho_platform}; "
+                    f"expected {expected_platform}"
+                )
+            if encoded_minimum != expected_minimum:
+                errors.append(
+                    f"XCFramework slice {key!r} minimum OS is "
+                    f"{'.'.join(str(item) for item in encoded_minimum)}; "
+                    f"expected {minimum_version}"
+                )
+        if actual_cpu_types != expected_cpu_types:
+            errors.append(
+                f"XCFramework slice {key!r} CPU types are "
+                f"{sorted(hex(item) for item in actual_cpu_types)!r}; expected "
+                f"{sorted(hex(item) for item in expected_cpu_types)!r}"
+            )
+        inspected_binary_count += 1
+
+    missing_slices = set(expected_slices) - seen
+    for key in sorted(missing_slices):
+        errors.append(f"XCFramework is missing required platform slice {key!r}")
+
+    return errors, inspected_binary_count
+
+
 def _inspect_pe(path: Path, data: bytes) -> str | None:
     if len(data) < 0x40 or data[:2] != b"MZ":
         return "not a PE/COFF binary"
@@ -200,6 +400,9 @@ def main() -> int:
     warnings: list[str] = []
     checks: list[str] = []
     inspected_binary_count = 0
+    lock_path = REPO_ROOT / "dependencies.lock"
+    early_lock = parse_shell_assignments(lock_path) if lock_path.is_file() else {}
+    ios_min_version = early_lock.get("IOS_MIN_VERSION", "")
 
     descriptor = REPO_ROOT / "godot-box3d.gdextension"
     test_descriptor = REPO_ROOT / "test_project/addons/godot-box3d/godot-box3d.gdextension"
@@ -224,7 +427,22 @@ def main() -> int:
                     continue
 
                 binary = (descriptor.parent / expected_path).resolve()
-                if not binary.is_file():
+                if expected_path.endswith(".xcframework"):
+                    if not binary.is_dir():
+                        errors.append(f"Missing {group} XCFramework: {binary.relative_to(REPO_ROOT)}")
+                        continue
+                    xcframework_errors, binary_count = inspect_ios_xcframework(
+                        binary,
+                        ios_min_version,
+                    )
+                    for xcframework_error in xcframework_errors:
+                        errors.append(
+                            f"Invalid XCFramework for {feature_tag} "
+                            f"({binary.relative_to(REPO_ROOT)}): {xcframework_error}."
+                        )
+                    if not xcframework_errors:
+                        inspected_binary_count += binary_count
+                elif not binary.is_file():
                     errors.append(f"Missing {group} binary: {binary.relative_to(REPO_ROOT)}")
                 elif binary.stat().st_size == 0:
                     errors.append(f"Binary is empty: {binary.relative_to(REPO_ROOT)}")
@@ -248,7 +466,6 @@ def main() -> int:
     else:
         errors.append("Missing test-project GDExtension descriptor.")
 
-    lock_path = REPO_ROOT / "dependencies.lock"
     lock: dict[str, str] = {}
     if not lock_path.is_file():
         errors.append("Missing dependencies.lock.")
@@ -263,6 +480,11 @@ def main() -> int:
         for key in ("SCONS_VERSION", "ANDROID_NDK_VERSION", "ANDROID_API_LEVEL", "IOS_MIN_VERSION", "EMSCRIPTEN_VERSION"):
             if not lock.get(key):
                 errors.append(f"Toolchain pin {key} is missing from dependencies.lock.")
+        if lock.get("IOS_MIN_VERSION") != "14.0":
+            errors.append(
+                "IOS_MIN_VERSION must remain 14.0 so Box3D allocation APIs and the "
+                "downstream Godot Light deployment target agree."
+            )
         checks.append("Pinned dependency and toolchain revisions")
 
     gitmodules = REPO_ROOT / ".gitmodules"
@@ -293,6 +515,8 @@ def main() -> int:
             'box3d_env.Prepend(CFLAGS=["/std:c17"])',
             'box3d_env.Prepend(CFLAGS=["-std=gnu17"])',
             'box3d_env.AppendUnique(CCFLAGS=["-msimd128", "-msse2"])',
+            'is_ios_simulator = platform_name == "ios"',
+            'env.AppendUnique(LINKFLAGS=[deployment_flag])',
             'SConscript("godot-cpp/SConstruct"',
         )
         for fragment in required_fragments:
@@ -388,6 +612,19 @@ def main() -> int:
             errors.append(f"Missing required build/package script: scripts/{filename}")
     if not any(error.startswith("Missing required build/package script") for error in errors):
         checks.append("Portable build and package scripts")
+
+    ios_build = REPO_ROOT / "scripts/build_ios.sh"
+    if ios_build.is_file():
+        ios_build_source = ios_build.read_text(encoding="utf-8")
+        for fragment in (
+            "arch=arm64",
+            "arch=universal",
+            "ios_simulator=yes",
+            "xcodebuild -create-xcframework",
+            "libgodot-box3d.ios.${target}.xcframework",
+        ):
+            if fragment not in ios_build_source:
+                errors.append(f"iOS build script is missing required XCFramework fragment: {fragment}")
 
     required_docs = (
         "WEB_QUICKSTART.md",

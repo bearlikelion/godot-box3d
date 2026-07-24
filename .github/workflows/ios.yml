@@ -1,0 +1,70 @@
+name: iOS Box3D
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/ios.yml"
+      - "SConstruct"
+      - "dependencies.lock"
+      - "godot-box3d.gdextension"
+      - "godot_cpp_build_profile.json"
+      - "scripts/build_ios.sh"
+      - "scripts/package_addon.py"
+      - "scripts/verify_port.py"
+      - "src/**"
+      - "box3d"
+      - "godot-cpp"
+      - "test_project/addons/godot-box3d/godot-box3d.gdextension"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/ios.yml"
+      - "SConstruct"
+      - "dependencies.lock"
+      - "godot-box3d.gdextension"
+      - "godot_cpp_build_profile.json"
+      - "scripts/build_ios.sh"
+      - "scripts/package_addon.py"
+      - "scripts/verify_port.py"
+      - "src/**"
+      - "box3d"
+      - "godot-cpp"
+      - "test_project/addons/godot-box3d/godot-box3d.gdextension"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up pinned SCons
+        run: scripts/setup_python_build_env.sh
+
+      - name: Bootstrap dependencies
+        run: scripts/bootstrap_dependencies.sh
+
+      - name: Build and verify iOS XCFrameworks
+        env:
+          JOBS: 4
+        run: scripts/build_ios.sh
+
+      - name: Package iOS addon
+        env:
+          SOURCE_DATE_EPOCH: "315532800"
+        run: |
+          python3 scripts/package_addon.py \
+            --mode addon \
+            --platform ios \
+            --output dist/godot-box3d-ios-addon.zip
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: godot-box3d-ios
+          path: dist/godot-box3d-ios-addon.zip
+          if-no-files-found: error

@@ -10,8 +10,8 @@ reloadable = false
 macos.single.debug = "./bin/macos/libgodot-box3d.macos.template_debug.dylib"
 macos.single.release = "./bin/macos/libgodot-box3d.macos.template_release.dylib"
 
-ios.arm64.single.debug = "./bin/ios/libgodot-box3d.ios.template_debug.arm64.dylib"
-ios.arm64.single.release = "./bin/ios/libgodot-box3d.ios.template_release.arm64.dylib"
+ios.debug = "./bin/ios/libgodot-box3d.ios.template_debug.xcframework"
+ios.release = "./bin/ios/libgodot-box3d.ios.template_release.xcframework"
 
 windows.x86_64.single.debug = "./bin/windows/godot-box3d.windows.template_debug.x86_64.dll"
 windows.x86_64.single.release = "./bin/windows/godot-box3d.windows.template_release.x86_64.dll"

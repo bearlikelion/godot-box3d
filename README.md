@@ -16,7 +16,7 @@ For browser support, start with [`WEB_QUICKSTART.md`](WEB_QUICKSTART.md). The co
 | Windows | x86-64 | debug, release | Desktop target |
 | macOS | universal | debug, release | Desktop target |
 | Android | arm64, x86-64 | debug, release | NDK 23.2.8568313, API 21+ |
-| iOS | arm64 device | debug, release | macOS/Xcode required |
+| iOS | arm64 device; arm64/x86-64 simulator | debug, release | XCFrameworks; macOS/Xcode required |
 | Web | wasm32 | debug, release | No threads; custom dynamic-link Web templates required |
 
 The portable profile embeds Box3D into the GDExtension and uses one Box3D worker. The Web build uses Emscripten 4.0.20 and WebAssembly SIMD128 by default.
@@ -109,7 +109,7 @@ See [`MOBILE_WEB_INTEGRATION.md`](MOBILE_WEB_INTEGRATION.md) for exact setup, ap
 
 ## Validation snapshot
 
-The complete Android matrix has been cross-compiled with the pinned NDK: arm64 and x86-64, debug and release. Linux x86-64 debug and release also compile and link. Web debug/release side modules and matching Godot 4.7 templates compile, and the exported smoke scene passes in Chrome. iOS compilation plus physical-device and cross-browser acceptance remain. See [`VALIDATION_REPORT.md`](VALIDATION_REPORT.md).
+The complete Android matrix has been cross-compiled with the pinned NDK: arm64 and x86-64, debug and release. Linux x86-64 debug and release also compile and link. Web debug/release side modules and matching Godot 4.7 templates compile, and the exported smoke scene passes in Chrome. iOS device and simulator binaries compile into verified XCFrameworks on macOS; signed export and physical-device acceptance remain. See [`VALIDATION_REPORT.md`](VALIDATION_REPORT.md).
 
 ## Install in a Godot project
 
