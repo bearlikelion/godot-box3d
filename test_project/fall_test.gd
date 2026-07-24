@@ -33,9 +33,10 @@ func _process(delta: float) -> bool:
 	if frames == 120:
 		print("Body Y after 120 physics frames: ", body.global_position.y)
 		print("Body linear velocity: ", body.linear_velocity)
-		if body.global_position.y < 4.0 and body.global_position.y > -5.0:
+		var passed: bool = body.global_position.y < 4.0 and body.global_position.y > -5.0
+		if passed:
 			print("RESULT: PASS - body fell under gravity and did not tunnel through ground")
 		else:
 			print("RESULT: FAIL - body did not fall as expected")
-		quit()
+		quit(0 if passed else 1)
 	return false

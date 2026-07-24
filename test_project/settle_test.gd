@@ -1,6 +1,7 @@
 extends SceneTree
 
 var frames: int = 0
+var failures: int = 0
 var body: RigidBody3D
 var ground: StaticBody3D
 
@@ -29,9 +30,10 @@ func _process(delta: float) -> bool:
 	if frames == 300:
 		print("Body Y after 300 frames (5s): ", body.global_position.y)
 		print("Body linear velocity: ", body.linear_velocity)
-		if body.global_position.y > 0.9 and body.global_position.y < 1.1:
-			print("RESULT: PASS - body rested on ground near expected height (~1.0)")
+		if abs(body.global_position.y - 0.5) < 0.08:
+			print("RESULT: PASS - body rested on ground near expected center height (~0.5)")
 		else:
+			failures += 1
 			print("RESULT: FAIL - body did not rest at expected height")
 
 		# Raycast test: cast straight down from above the ground.
@@ -43,9 +45,11 @@ func _process(delta: float) -> bool:
 			if abs(result["position"].y - 0.0) < 0.1:
 				print("RESULT: PASS - raycast hit ground at expected height")
 			else:
+				failures += 1
 				print("RESULT: FAIL - raycast hit unexpected height")
 		else:
+			failures += 1
 			print("RESULT: FAIL - raycast did not hit anything")
 
-		quit()
+		quit(1 if failures > 0 else 0)
 	return false

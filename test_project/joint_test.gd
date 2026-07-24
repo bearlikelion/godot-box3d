@@ -44,9 +44,10 @@ func _process(delta: float) -> bool:
 		print("Door rotation Z (deg): ", rad_to_deg(door.rotation.z))
 		var dist_from_anchor: float = door.global_position.distance_to(Vector3(0, 0, 0))
 		print("Distance from anchor: ", dist_from_anchor)
-		if abs(door.rotation.z) > 0.05 and dist_from_anchor < 1.5:
+		var passed: bool = abs(door.rotation.z) > 0.05 and dist_from_anchor < 1.5
+		if passed:
 			print("RESULT: PASS - hinge joint constrained rotation around anchor")
 		else:
 			print("RESULT: FAIL - hinge joint did not behave as expected")
-		quit()
+		quit(0 if passed else 1)
 	return false

@@ -44,9 +44,10 @@ func _process(delta: float) -> bool:
 	frames += 1
 	if frames == 600:
 		print("Entered: ", entered, " Exited: ", exited)
-		if entered and exited:
+		var passed: bool = entered and exited
+		if passed:
 			print("RESULT: PASS - area entered and exited signals fired")
 		else:
 			print("RESULT: FAIL - area monitoring signals did not fire as expected")
-		quit()
+		quit(0 if passed else 1)
 	return false

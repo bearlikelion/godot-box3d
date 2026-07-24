@@ -42,6 +42,16 @@ cmake --build build
 
 The resulting library is placed in `bin/` and loaded via `godot-box3d.gdextension`. Copy `bin/` and the `.gdextension` file into your project, then select the Box3D physics server in your project settings.
 
+## Testing
+
+With a Godot 4.7 executable available as `godot`, run:
+
+```sh
+scripts/run_headless_tests.sh
+```
+
+Set `GODOT_BIN=/path/to/godot` when the executable is not on `PATH`. The runner builds the extension, verifies that the Box3D backend loaded, and exits nonzero when any smoke test fails.
+
 ## Contributing
 
 Help wanted! This is a big surface area for one person, and contributions of any size are very welcome: missing features from the list above, bug reports with reproduction scenes, benchmarks, documentation, or just trying it in your project and reporting what breaks. Open an issue or a pull request.
