@@ -298,18 +298,30 @@ void Box3DPhysicsServer3D::_area_clear_shapes(const RID& p_area) {
 
 void Box3DPhysicsServer3D::_area_attach_object_instance_id(const RID& p_area, uint64_t p_id) {
 	Box3DAreaImpl3D* area = area_owner.get_or_null(p_area);
+	if (area == nullptr) {
+		Box3DSpace3D* space = space_owner.get_or_null(p_area);
+		area = space != nullptr ? space->get_default_area() : nullptr;
+	}
 	ERR_FAIL_NULL(area);
 	area->set_instance_id(p_id);
 }
 
 uint64_t Box3DPhysicsServer3D::_area_get_object_instance_id(const RID& p_area) const {
 	Box3DAreaImpl3D* area = area_owner.get_or_null(p_area);
+	if (area == nullptr) {
+		Box3DSpace3D* space = space_owner.get_or_null(p_area);
+		area = space != nullptr ? space->get_default_area() : nullptr;
+	}
 	ERR_FAIL_NULL_V(area, 0);
 	return area->get_instance_id();
 }
 
 void Box3DPhysicsServer3D::_area_set_param(const RID& p_area, PhysicsServer3D::AreaParameter p_param, const Variant& p_value) {
 	Box3DAreaImpl3D* area = area_owner.get_or_null(p_area);
+	if (area == nullptr) {
+		Box3DSpace3D* space = space_owner.get_or_null(p_area);
+		area = space != nullptr ? space->get_default_area() : nullptr;
+	}
 	ERR_FAIL_NULL(area);
 	area->set_param(p_param, p_value);
 }
@@ -322,6 +334,10 @@ void Box3DPhysicsServer3D::_area_set_transform(const RID& p_area, const Transfor
 
 Variant Box3DPhysicsServer3D::_area_get_param(const RID& p_area, PhysicsServer3D::AreaParameter p_param) const {
 	Box3DAreaImpl3D* area = area_owner.get_or_null(p_area);
+	if (area == nullptr) {
+		Box3DSpace3D* space = space_owner.get_or_null(p_area);
+		area = space != nullptr ? space->get_default_area() : nullptr;
+	}
 	ERR_FAIL_NULL_V(area, Variant());
 	return area->get_param(p_param);
 }
