@@ -81,12 +81,25 @@ if ARGUMENTS.get("platform") == "web" and "threads" not in ARGUMENTS:
 env = SConscript("godot-cpp/SConstruct", {"env": local_env, "customs": []})
 
 platform_name = env["platform"]
-variant = "{}-{}-{}{}".format(
+is_ios_simulator = platform_name == "ios" and bool(env.get("ios_simulator", False))
+variant = "{}-{}-{}{}{}".format(
     platform_name,
     env["target"],
     env["arch"],
+    "-simulator" if is_ios_simulator else "",
     "-nothreads" if not env["threads"] else "",
 )
+
+# The pinned Godot 4.3 iOS tool applies its deployment target to compilation
+# but not linking. New Xcode versions then stamp the dylib with the SDK version
+# as its minimum OS. Keep the older API-compatible bindings while applying the
+# same target to the final link, matching current godot-cpp behavior.
+if platform_name == "ios":
+    ios_min_version = str(env["ios_min_version"])
+    deployment_flag = (
+        "-mios-simulator-version-min=" if is_ios_simulator else "-miphoneos-version-min="
+    ) + ios_min_version
+    env.AppendUnique(LINKFLAGS=[deployment_flag])
 
 common_include_dirs = [
     env.Dir("#src"),

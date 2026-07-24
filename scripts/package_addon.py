@@ -24,8 +24,8 @@ PLATFORM_BINARIES: dict[str, tuple[str, ...]] = {
         "bin/android/libgodot-box3d.android.template_release.x86_64.so",
     ),
     "ios": (
-        "bin/ios/libgodot-box3d.ios.template_debug.arm64.dylib",
-        "bin/ios/libgodot-box3d.ios.template_release.arm64.dylib",
+        "bin/ios/libgodot-box3d.ios.template_debug.xcframework",
+        "bin/ios/libgodot-box3d.ios.template_release.xcframework",
     ),
     "web": (
         "bin/web/libgodot-box3d.web.template_debug.wasm32.nothreads.wasm",
@@ -91,14 +91,27 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def copy_required(source: Path, destination: Path, *, allow_missing: bool, missing: list[str]) -> None:
-    if not source.is_file() or source.stat().st_size == 0:
-        missing.append(str(source.relative_to(REPO_ROOT) if source.is_relative_to(REPO_ROOT) else source))
-        if allow_missing:
-            return
-        raise FileNotFoundError(f"Required file is missing or empty: {source}")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, destination)
+def copy_required(
+    source: Path,
+    destination: Path,
+    *,
+    allow_missing: bool,
+    missing: list[str],
+) -> list[Path]:
+    if source.is_dir():
+        files = sorted(path for path in source.rglob("*") if path.is_file() and path.stat().st_size > 0)
+        if files:
+            shutil.copytree(source, destination)
+            return files
+    elif source.is_file() and source.stat().st_size > 0:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+        return [source]
+
+    missing.append(str(source.relative_to(REPO_ROOT) if source.is_relative_to(REPO_ROOT) else source))
+    if allow_missing:
+        return []
+    raise FileNotFoundError(f"Required file or directory is missing or empty: {source}")
 
 
 def zip_tree(root: Path, output: Path) -> None:
@@ -149,15 +162,22 @@ def main() -> int:
                 source = REPO_ROOT / relative
                 destination = addon / relative
                 before_missing_count = len(missing)
-                copy_required(source, destination, allow_missing=args.allow_missing, missing=missing)
+                copied_files = copy_required(
+                    source,
+                    destination,
+                    allow_missing=args.allow_missing,
+                    missing=missing,
+                )
                 if len(missing) == before_missing_count:
-                    included_binaries.append(
-                        {
-                            "path": (ADDON_ROOT / relative).as_posix(),
-                            "size": source.stat().st_size,
-                            "sha256": sha256(source),
-                        }
-                    )
+                    for copied_file in copied_files:
+                        copied_relative = copied_file.relative_to(REPO_ROOT)
+                        included_binaries.append(
+                            {
+                                "path": (ADDON_ROOT / copied_relative).as_posix(),
+                                "size": copied_file.stat().st_size,
+                                "sha256": sha256(copied_file),
+                            }
+                        )
 
         web_templates: list[dict[str, str | int]] = []
         if args.mode == "bundle":

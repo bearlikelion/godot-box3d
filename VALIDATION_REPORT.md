@@ -1,12 +1,19 @@
 # Validation Report
 
-**Validation date:** July 23, 2026
+**Validation date:** July 24, 2026
 
 **Scope:** Portable Godot Box3D source port for Android, iOS, and Web
 
 ## Result summary
 
-The portable source and build system are internally consistent. Native compilation passed for the complete supported Android matrix plus Linux regression builds, local Godot 4.7 Web compilation and Chrome runtime smoke tests passed for both debug and release profiles, and the regenerated Android x86-64 extension passed the downstream Godot Light API 35 emulator gameplay lane.
+The portable source and build system are internally consistent. Native
+compilation passed for the complete supported Android matrix plus Linux
+regression builds. Local Godot 4.7 Web compilation and Chrome runtime smoke
+tests passed for both debug and release profiles, and the regenerated Android
+x86-64 extension passed the downstream Godot Light API 35 emulator gameplay
+lane. On macOS, iOS device and universal-simulator debug/release binaries
+compiled, linked, packaged as XCFrameworks, and passed Mach-O architecture,
+platform, exported-symbol, and minimum-deployment-target inspection.
 
 | Validation area | Result |
 |---|---|
@@ -25,7 +32,9 @@ The portable source and build system are internally consistent. Native compilati
 | Android x86-64 release compile/link | Passed |
 | Exported `godot_box3d_main` symbol | Passed for all compiled binaries |
 | Android ELF architecture and API metadata | Passed |
-| iOS compile/link | Not executed in the Linux validation environment |
+| iOS arm64 device compile/link | Passed for debug and release |
+| iOS arm64/x86-64 simulator compile/link | Passed for debug and release |
+| iOS XCFramework structure and Mach-O metadata | Passed; iOS 14 minimum verified in every slice |
 | Web extension compile/link | Passed for debug and release with Emscripten 4.0.20 |
 | Custom Godot Web template compile | Passed for Godot 4.7 debug and release, dynamic linking, no threads |
 | Godot runtime/headless tests | Passed locally with Godot 4.7 |
@@ -46,7 +55,7 @@ The portable source and build system are internally consistent. Native compilati
 | SCons | 4.8.1 |
 | Android NDK | 23.2.8568313 (r23c) |
 | Android API level | 21 |
-| iOS minimum version | 12.0 |
+| iOS minimum version | 14.0 |
 
 ## Validation host and compilers
 
@@ -56,6 +65,10 @@ The portable source and build system are internally consistent. Native compilati
 - Android NDK r23c Clang 12.0.9 for Android cross-compilation.
 - SCons 4.8.1.
 - Local Web follow-up used macOS, Godot 4.7-stable, Emscripten 4.0.20, and Google Chrome.
+- The iOS follow-up used an Intel macOS 15.7.1 host, Xcode 26.0.1
+  (`17A400`), Apple Clang 17.0.0, and the iPhoneOS/iPhoneSimulator 26.0 SDKs.
+- The post-change macOS desktop regression used the locally resolved Godot
+  4.6.3 editor and the universal debug extension.
 
 ## Real compiled artifacts
 
@@ -70,6 +83,10 @@ These checksums identify the exact binaries produced during validation. They are
 | `bin/macos/libgodot-box3d.macos.template_debug.dylib` | 1,701,240 | `395a85848d5eeec6f5eb93de95f02c72ffc0f5538900ed5f34d905c0e3465806` |
 | `bin/linux/libgodot-box3d.linux.template_debug.x86_64.so` | 1,707,032 | `5870746d16d91b6142cec6eeadf4e7eb4269bc6694576d496b7439f2f68e1387` |
 | `bin/linux/libgodot-box3d.linux.template_release.x86_64.so` | 1,804,960 | `6ad5ac19d7bbbd00c4e1a843adb6fccbca4e6a96368a098769480578a01d002e` |
+| `bin/ios/libgodot-box3d.ios.template_debug.xcframework/ios-arm64/libgodot-box3d.ios.template_debug.arm64.dylib` | 793,520 | `e33a048b0a538ef9cee664f981d702a92c03f95b4f85f4401eb1f67fed846a4c` |
+| `bin/ios/libgodot-box3d.ios.template_debug.xcframework/ios-arm64_x86_64-simulator/libgodot-box3d.ios.template_debug.simulator.dylib` | 1,684,800 | `3cff89b98293b79c0b508899f7d920435044e99950aff6b8c18f66f1da177e01` |
+| `bin/ios/libgodot-box3d.ios.template_release.xcframework/ios-arm64/libgodot-box3d.ios.template_release.arm64.dylib` | 826,264 | `00aca92bd5fbf52ba25251a4856575754c105a574d78e95b3f6a84809a144f91` |
+| `bin/ios/libgodot-box3d.ios.template_release.xcframework/ios-arm64_x86_64-simulator/libgodot-box3d.ios.template_release.simulator.dylib` | 1,750,576 | `29643eadfb5fd1b2246747f4bfda37f5555745b21fd928c86d09d8175856bb73` |
 | `bin/web/libgodot-box3d.web.template_debug.wasm32.nothreads.wasm` | 952,226 | `e8029a59de546e73c0228af8674dc02b004d8113b4b25b2afffd8446fd1c5aa7` |
 | `bin/web/libgodot-box3d.web.template_release.wasm32.nothreads.wasm` | 964,671 | `05157f241437f9eb2c87ebf6c72d9c219ba6fb3e69a95e21b6d385b6209918b2` |
 
@@ -78,6 +95,11 @@ These checksums identify the exact binaries produced during validation. They are
 - Android arm64 outputs are 64-bit AArch64 shared objects for Android API 21, built by NDK r23c.
 - Android x86-64 outputs are 64-bit x86-64 shared objects for Android API 21, built by NDK r23c.
 - Linux outputs are 64-bit x86-64 shared objects.
+- iOS device outputs are arm64 Mach-O dylibs tagged for iOS with a 14.0
+  minimum version.
+- iOS simulator outputs are universal arm64/x86-64 Mach-O dylibs; both
+  architecture slices are tagged for the iOS simulator with a 14.0 minimum
+  version.
 - Web outputs are wasm32 side modules built for the single-threaded dynamic-link profile.
 - Every compiled library exports `godot_box3d_main`.
 
@@ -125,6 +147,17 @@ scripts/build_android.sh
 python3 scripts/verify_port.py --platform android --require-binaries
 ```
 
+iOS device/simulator XCFrameworks:
+
+```bash
+scripts/build_ios.sh
+python3 scripts/verify_port.py --platform ios --require-binaries
+python3 scripts/package_addon.py \
+  --mode addon \
+  --platform ios \
+  --output dist/godot-box3d-ios-addon.zip
+```
+
 Web side modules, matching templates, and browser smoke:
 
 ```bash
@@ -135,11 +168,9 @@ python3 scripts/verify_port.py --platform web --require-binaries
 python3 scripts/run_web_smoke.py --dir build/web-smoke-release
 ```
 
-The portable GitHub Actions workflow supplies the remaining platform-specific validation:
-
-- iOS compile/link on macOS.
-- Repeatable Web extension/template builds and browser smoke in CI.
-- Strict complete-matrix packaging.
+The portable GitHub Actions workflows provide repeatable iOS XCFramework
+compilation/package validation, Web extension/template builds and browser
+smoke, and strict complete-matrix packaging.
 
 ## Remaining release acceptance
 
@@ -147,10 +178,13 @@ The following are intentionally release gates rather than claims made by this re
 
 1. Install debug and release Android exports on a physical arm64 device.
 2. Repeat the passing x86-64 API 35 downstream gameplay lane on CI or a second emulator host when emulator support becomes a release gate.
-3. Build, sign, install, suspend, resume, and terminate an iOS release export on physical hardware.
-4. Load both Web variants with the matching custom templates in the product's supported Chromium, Firefox, and Safari versions.
-5. Run `portable_smoke_test.tscn` on every target and retain screenshots/logs with `BUILD_MANIFEST.json`.
-6. Establish physics-body/contact budgets on representative low-end mobile devices and browsers.
+3. Export and launch a Godot project using the XCFramework on an iOS
+   simulator.
+4. Build, sign, install, suspend, resume, and terminate an iOS release export
+   on physical hardware.
+5. Load both Web variants with the matching custom templates in the product's supported Chromium, Firefox, and Safari versions.
+6. Run `portable_smoke_test.tscn` on every target and retain screenshots/logs with `BUILD_MANIFEST.json`.
+7. Establish physics-body/contact budgets on representative low-end mobile devices and browsers.
 
 Successful compilation does not replace these runtime, lifecycle, signing, browser-loader, or performance checks.
 

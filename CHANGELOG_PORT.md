@@ -22,7 +22,8 @@
 - Exact dependency/toolchain lock file.
 - `godot-cpp` submodule declaration.
 - Android arm64/x86-64 build automation.
-- iOS arm64 device build automation.
+- iOS arm64 device and universal simulator XCFramework build automation with
+  verified deployment targets.
 - Web wasm32 no-thread side-module build automation.
 - Dynamic-link-enabled Godot Web template build automation.
 - Portable release GitHub Actions workflow.

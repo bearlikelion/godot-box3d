@@ -6,7 +6,8 @@
 |---|---|---|---|---|
 | Android arm64 | Complete | Included | Debug and release passed | Physical-device gate remains |
 | Android x86-64 | Complete | Included | Debug and release passed | Emulator gate remains |
-| iOS arm64 device | Complete | Included on macOS | Not run in Linux environment | Signing/device gate remains |
+| iOS arm64 device | Complete | Included on macOS | Debug and release passed on macOS | Signing/device gate remains |
+| iOS arm64/x86-64 simulator | Complete | Included on macOS | Debug and release XCFramework slices passed on macOS | Exported simulator smoke remains |
 | Web wasm32, no threads | Complete | Included | Debug and release passed | Chromium smoke passed; cross-browser gate remains |
 | Custom Godot Web templates | Complete | Included | Debug and release passed | Chromium smoke passed; cross-browser gate remains |
 
@@ -18,7 +19,8 @@
 - Reduced `godot-cpp` build profile containing the classes needed by this physics backend and their dependencies.
 - Box3D C17 sources compiled directly into the GDExtension library, avoiding a second runtime native library.
 - Android arm64 and x86-64 debug/release targets.
-- iOS arm64 device debug/release targets.
+- iOS arm64 device and universal arm64/x86-64 simulator debug/release
+  XCFramework targets.
 - Web wasm32 debug/release side modules using the supported no-thread profile.
 - WebAssembly SIMD128 flags with an opt-in scalar diagnostic fallback.
 - Matching custom Godot Web export-template build with `dlink_enabled=yes` and `threads=no`.
@@ -38,6 +40,8 @@
 - Linux x86-64 debug and release compiled and linked against the pinned sources.
 - Android arm64 debug and release cross-compiled with NDK 23.2.8568313 for API 21.
 - Android x86-64 debug and release cross-compiled with the same NDK/API.
+- iOS arm64 device and universal simulator debug/release binaries compiled,
+  linked, and packaged into XCFrameworks with an iOS 14 minimum target.
 - All compiled outputs have the advertised ELF architecture and shared-library type.
 - All compiled outputs export `godot_box3d_main`.
 - The secondary CMake graph configured successfully with pinned dependencies.
@@ -55,7 +59,8 @@ Detailed hashes and limitations are in `VALIDATION_REPORT.md`.
 
 - Android loading, lifecycle, and performance on physical arm64 devices.
 - Android x86-64 emulator loading when emulator support is required.
-- iOS compilation in the team's Xcode environment, embedding, code signing, App Store validation, and physical-device execution.
+- iOS Godot/Xcode embedding, simulator execution, code signing, App Store
+  validation, and physical-device execution.
 - Web loading in the product's supported Firefox and Safari versions and in release CI.
 - Production-scale physics benchmarks on representative low-end mobile hardware.
 
@@ -69,7 +74,7 @@ The supplied `portable-release.yml` workflow performs the cross-compiles in cont
 | Godot precision | Single |
 | Box3D workers | 1 |
 | Android | arm64 and x86-64, API 21+, NDK 23.2.8568313 |
-| iOS | arm64 device, minimum iOS 12.0 |
+| iOS | arm64 device plus arm64/x86-64 simulator, minimum iOS 14.0 |
 | Web | wasm32, no threads, dynamic linking, Emscripten 4.0.20 |
 | Default build parallelism | At most 8 jobs unless overridden |
 
