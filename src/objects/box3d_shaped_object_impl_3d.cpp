@@ -36,8 +36,7 @@ b3ShapeId create_box3d_shape(
 
 	b3ShapeDef def = b3DefaultShapeDef();
 	def.userData = p_user_data;
-	def.filter.categoryBits = (uint64_t)p_layer;
-	def.filter.maskBits = (uint64_t)p_mask;
+	def.filter = godot_to_b3_filter(p_layer, p_mask);
 	def.isSensor = p_is_sensor;
 	// Box3D requires *both* sides of a sensor overlap to opt into sensor events (see
 	// b3ShapeDef::enableSensorEvents doc comment: "This applies to sensors and

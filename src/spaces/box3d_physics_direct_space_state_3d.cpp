@@ -342,7 +342,7 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 	}
 
 	Box3DQueryFilter3D filter;
-	filter.filter.maskBits = (uint64_t)p_body.get_collision_mask();
+	filter.set_collision_mask(p_body.get_collision_mask());
 	filter.exclude.insert(p_body.get_rid());
 
 	const Box3DShapeProxy3D shape_proxy(first_shape, p_transform * p_body.get_shape_transform(0));
