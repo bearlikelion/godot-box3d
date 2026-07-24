@@ -5,6 +5,7 @@
 #include "../shapes/box3d_capsule_shape_impl_3d.hpp"
 #include "../shapes/box3d_concave_polygon_shape_impl_3d.hpp"
 #include "../shapes/box3d_convex_polygon_shape_impl_3d.hpp"
+#include "../shapes/box3d_cylinder_shape_impl_3d.hpp"
 #include "../shapes/box3d_heightmap_shape_impl_3d.hpp"
 #include "../shapes/box3d_shape_impl_3d.hpp"
 #include "../shapes/box3d_sphere_shape_impl_3d.hpp"
@@ -81,6 +82,21 @@ b3ShapeId create_box3d_shape(
 			const b3Transform box_transform = godot_to_b3_transform(local);
 			b3BoxHull box_hull = b3MakeTransformedBoxHull((float)half.x, (float)half.y, (float)half.z, box_transform);
 			return b3CreateHullShape(p_body_id, &def, &box_hull.base);
+		}
+
+		case PhysicsServer3D::SHAPE_CYLINDER: {
+			auto* cylinder_shape = static_cast<Box3DCylinderShapeImpl3D*>(shape);
+			const float height = (float)cylinder_shape->get_height();
+			b3HullData* cylinder = b3CreateCylinder(
+					height,
+					(float)cylinder_shape->get_radius(),
+					-0.5f * height,
+					Box3DCylinderShapeImpl3D::HULL_SIDES);
+			ERR_FAIL_NULL_V(cylinder, b3_nullShapeId);
+			const b3Transform cylinder_transform = godot_to_b3_transform(local);
+			const b3ShapeId shape_id = b3CreateTransformedHullShape(p_body_id, &def, cylinder, cylinder_transform, b3Vec3{1.0f, 1.0f, 1.0f});
+			b3DestroyHull(cylinder);
+			return shape_id;
 		}
 
 		case PhysicsServer3D::SHAPE_CONVEX_POLYGON: {
