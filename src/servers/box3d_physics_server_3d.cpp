@@ -13,6 +13,7 @@
 #include "../shapes/box3d_capsule_shape_impl_3d.hpp"
 #include "../shapes/box3d_concave_polygon_shape_impl_3d.hpp"
 #include "../shapes/box3d_convex_polygon_shape_impl_3d.hpp"
+#include "../shapes/box3d_cylinder_shape_impl_3d.hpp"
 #include "../shapes/box3d_heightmap_shape_impl_3d.hpp"
 #include "../shapes/box3d_shape_impl_3d.hpp"
 #include "../shapes/box3d_sphere_shape_impl_3d.hpp"
@@ -79,7 +80,10 @@ RID Box3DPhysicsServer3D::_capsule_shape_create() {
 }
 
 RID Box3DPhysicsServer3D::_cylinder_shape_create() {
-	ERR_FAIL_V_MSG(RID(), "Box3D: CylinderShape3D is not supported in this version of the Box3D extension.");
+	auto* shape = memnew(Box3DCylinderShapeImpl3D);
+	const RID rid = shape_owner.make_rid(shape);
+	shape->set_rid(rid);
+	return rid;
 }
 
 RID Box3DPhysicsServer3D::_convex_polygon_shape_create() {

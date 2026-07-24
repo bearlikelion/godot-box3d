@@ -9,7 +9,7 @@ The structure of this extension is based on [godot-jolt](https://github.com/godo
 ## What works
 
 - Rigid, static, and kinematic bodies
-- Shapes: box, sphere, capsule, convex polygon, concave polygon (trimesh), heightmap, and world boundary
+- Shapes: box, sphere, capsule, cylinder, convex polygon, concave polygon (trimesh), heightmap, and world boundary
 - Areas, including overlap events and gravity/damping overrides
 - Direct space state queries: ray casts, point and shape intersection, shape casts (`cast_motion`), `collide_shape`, and `rest_info`
 - `body_test_motion`, so `CharacterBody3D` and `move_and_slide()` work
@@ -18,7 +18,7 @@ The structure of this extension is based on [godot-jolt](https://github.com/godo
 
 ## What's left to do
 
-- Cylinder and separation ray shapes (not supported by Box3D)
+- Separation ray shapes
 - ConeTwist and Generic6DOF joints
 - `SoftBody3D`
 - Per-pair collision exceptions (use collision layers/masks for now)
