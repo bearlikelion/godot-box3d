@@ -64,3 +64,13 @@ set_target_properties(godot-box3d PROPERTIES
 	LIBRARY_OUTPUT_DIRECTORY "$<1:${CMAKE_CURRENT_SOURCE_DIR}/bin>"
 	RUNTIME_OUTPUT_DIRECTORY "$<1:${CMAKE_CURRENT_SOURCE_DIR}/bin>"
 )
+
+# The test project loads its own gitignored copy under addons/, not bin/; keep it in sync
+# so headless tests never run against a stale binary.
+add_custom_command(TARGET godot-box3d POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E make_directory
+		"${CMAKE_CURRENT_SOURCE_DIR}/test_project/addons/godot-box3d/bin"
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different
+		"$<TARGET_FILE:godot-box3d>"
+		"${CMAKE_CURRENT_SOURCE_DIR}/test_project/addons/godot-box3d/bin/$<TARGET_FILE_NAME:godot-box3d>"
+)

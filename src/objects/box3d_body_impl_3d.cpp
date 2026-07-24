@@ -59,26 +59,9 @@ b3BodyId Box3DBodyImpl3D::_create_body_id(b3WorldId p_world_id) {
 	def.motionLocks.angularY = axis_lock_angular_y || mode == PhysicsServer3D::BODY_MODE_RIGID_LINEAR;
 	def.motionLocks.angularZ = axis_lock_angular_z || mode == PhysicsServer3D::BODY_MODE_RIGID_LINEAR;
 
-	const b3BodyId new_body_id = b3CreateBody(p_world_id, &def);
-
-	if (use_custom_mass || use_custom_inertia) {
-		b3MassData mass_data = b3Body_GetMassData(new_body_id);
-		if (use_custom_mass) {
-			mass_data.mass = (float)mass;
-		}
-		if (use_custom_inertia) {
-			mass_data.inertia = b3Mat3_zero;
-			mass_data.inertia.cx.x = (float)inertia.x;
-			mass_data.inertia.cy.y = (float)inertia.y;
-			mass_data.inertia.cz.z = (float)inertia.z;
-		}
-		if (use_custom_center_of_mass) {
-			mass_data.center = godot_to_b3(center_of_mass_custom);
-		}
-		b3Body_SetMassData(new_body_id, mass_data);
-	}
-
-	return new_body_id;
+	// Mass data is not applied here: shape creation right after (rebuild_shapes) makes
+	// Box3D recompute it from shape density, so _shapes_changed() re-applies it then.
+	return b3CreateBody(p_world_id, &def);
 }
 
 void Box3DBodyImpl3D::set_mode(BodyMode p_mode) {
@@ -89,24 +72,13 @@ void Box3DBodyImpl3D::set_mode(BodyMode p_mode) {
 	if (has_body_id()) {
 		b3Body_SetType(body_id, to_box3d_body_type(mode));
 		_update_motion_locks();
+		_refresh_mass_data();
 	}
-}
-
-real_t Box3DBodyImpl3D::get_mass() const {
-	if (has_body_id()) {
-		return (real_t)b3Body_GetMass(body_id);
-	}
-	return mass;
 }
 
 void Box3DBodyImpl3D::set_mass(real_t p_mass) {
 	mass = p_mass;
-	use_custom_mass = true;
-	if (has_body_id()) {
-		b3MassData mass_data = b3Body_GetMassData(body_id);
-		mass_data.mass = (float)p_mass;
-		b3Body_SetMassData(body_id, mass_data);
-	}
+	_refresh_mass_data();
 }
 
 Vector3 Box3DBodyImpl3D::get_inertia() const {
@@ -120,16 +92,7 @@ Vector3 Box3DBodyImpl3D::get_inertia() const {
 void Box3DBodyImpl3D::set_inertia(const Vector3& p_inertia) {
 	inertia = p_inertia;
 	use_custom_inertia = p_inertia != Vector3();
-	if (has_body_id()) {
-		b3MassData mass_data = b3Body_GetMassData(body_id);
-		if (use_custom_inertia) {
-			mass_data.inertia = b3Mat3_zero;
-			mass_data.inertia.cx.x = (float)p_inertia.x;
-			mass_data.inertia.cy.y = (float)p_inertia.y;
-			mass_data.inertia.cz.z = (float)p_inertia.z;
-		}
-		b3Body_SetMassData(body_id, mass_data);
-	}
+	_refresh_mass_data();
 }
 
 Vector3 Box3DBodyImpl3D::get_center_of_mass() const {
@@ -142,20 +105,44 @@ Vector3 Box3DBodyImpl3D::get_center_of_mass() const {
 void Box3DBodyImpl3D::set_center_of_mass(const Vector3& p_center) {
 	center_of_mass_custom = p_center;
 	use_custom_center_of_mass = true;
-	if (has_body_id()) {
-		b3MassData mass_data = b3Body_GetMassData(body_id);
-		mass_data.center = godot_to_b3(p_center);
-		b3Body_SetMassData(body_id, mass_data);
-	}
+	_refresh_mass_data();
 }
 
 void Box3DBodyImpl3D::apply_mass_from_shapes() {
-	use_custom_mass = false;
+	// Godot's body_reset_mass_properties: inertia and center of mass return to automatic
+	// calculation, mass stays explicit.
 	use_custom_inertia = false;
 	use_custom_center_of_mass = false;
-	if (has_body_id()) {
-		b3Body_ApplyMassFromShapes(body_id);
+	_refresh_mass_data();
+}
+
+void Box3DBodyImpl3D::_refresh_mass_data() {
+	if (!has_body_id() ||
+			(mode != PhysicsServer3D::BODY_MODE_RIGID && mode != PhysicsServer3D::BODY_MODE_RIGID_LINEAR)) {
+		return;
 	}
+	// Godot bodies have an explicit mass (default 1.0) regardless of shape volume, so
+	// restore the pristine shape-derived data, scale its inertia to the explicit mass,
+	// then layer any custom inertia/center on top.
+	b3Body_ApplyMassFromShapes(body_id);
+	b3MassData mass_data = b3Body_GetMassData(body_id);
+	if (mass_data.mass > 0.0f) {
+		const float scale = (float)mass / mass_data.mass;
+		mass_data.inertia.cx = b3MulSV(scale, mass_data.inertia.cx);
+		mass_data.inertia.cy = b3MulSV(scale, mass_data.inertia.cy);
+		mass_data.inertia.cz = b3MulSV(scale, mass_data.inertia.cz);
+	}
+	mass_data.mass = (float)mass;
+	if (use_custom_inertia) {
+		mass_data.inertia = b3Mat3_zero;
+		mass_data.inertia.cx.x = (float)inertia.x;
+		mass_data.inertia.cy.y = (float)inertia.y;
+		mass_data.inertia.cz.z = (float)inertia.z;
+	}
+	if (use_custom_center_of_mass) {
+		mass_data.center = godot_to_b3(center_of_mass_custom);
+	}
+	b3Body_SetMassData(body_id, mass_data);
 }
 
 void Box3DBodyImpl3D::set_linear_damping(real_t p_damping) {
@@ -329,7 +316,8 @@ void Box3DBodyImpl3D::apply_central_impulse(const Vector3& p_impulse) {
 
 void Box3DBodyImpl3D::apply_impulse(const Vector3& p_impulse, const Vector3& p_position) {
 	if (has_body_id()) {
-		const Vector3 world_point = get_transform().xform(p_position);
+		// p_position is an offset from the body origin in global coordinates, not a local point.
+		const Vector3 world_point = get_transform().origin + p_position;
 		b3Body_ApplyLinearImpulse(body_id, godot_to_b3(p_impulse), godot_to_b3(world_point), true);
 	}
 }
@@ -350,7 +338,7 @@ void Box3DBodyImpl3D::apply_central_force(const Vector3& p_force) {
 void Box3DBodyImpl3D::apply_force(const Vector3& p_force, const Vector3& p_position) {
 	if (has_body_id()) {
 		applied_force += p_force;
-		applied_torque += (p_position - get_center_of_mass()).cross(p_force);
+		applied_torque += (p_position - get_transform().basis.xform(get_center_of_mass())).cross(p_force);
 		b3Body_SetAwake(body_id, true);
 	}
 }
@@ -371,8 +359,8 @@ void Box3DBodyImpl3D::add_constant_force(const Vector3& p_force, const Vector3& 
 	// single accumulated force+torque pair; approximate by converting to an equivalent
 	// force+torque about the center of mass, reapplied every step in pre_step().
 	constant_force += p_force;
-	const Vector3 local_point = p_position - get_center_of_mass();
-	constant_torque += local_point.cross(p_force);
+	const Vector3 com_offset = p_position - get_transform().basis.xform(get_center_of_mass());
+	constant_torque += com_offset.cross(p_force);
 }
 
 void Box3DBodyImpl3D::add_constant_torque(const Vector3& p_torque) {

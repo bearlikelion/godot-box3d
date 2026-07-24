@@ -27,7 +27,9 @@ public:
 
 	void set_mode(BodyMode p_mode);
 
-	real_t get_mass() const;
+	// Godot semantics: mass is always the explicitly set value (default 1.0), never
+	// derived from shape volume like native Box3D.
+	real_t get_mass() const { return mass; }
 
 	void set_mass(real_t p_mass);
 
@@ -155,16 +157,19 @@ protected:
 
 	float _get_shape_restitution() const override { return (float)bounce; }
 
+	void _shapes_changed() override { _refresh_mass_data(); }
+
 private:
 	void _update_motion_locks();
 
 	void _sync_force_integration_settings();
 
+	void _refresh_mass_data();
+
 	BodyMode mode = PhysicsServer3D::BODY_MODE_RIGID;
 
 	real_t mass = 1.0;
 	Vector3 inertia;
-	bool use_custom_mass = false;
 	bool use_custom_inertia = false;
 	bool use_custom_center_of_mass = false;
 	Vector3 center_of_mass_custom;

@@ -65,6 +65,11 @@ protected:
 	// shape (see Box3DAreaImpl3D); regular bodies return false.
 	virtual bool _is_sensor_body() const { return false; }
 
+	// Invoked after any change to the live b3 shape set. Box3D recomputes mass data from
+	// shape density on every such change, so bodies use this to re-apply their explicit
+	// Godot mass/inertia/center-of-mass on top of the shape-derived values.
+	virtual void _shapes_changed() {}
+
 	// Bodies override these with their BODY_PARAM_FRICTION/BOUNCE values; areas keep the
 	// Box3D defaults since sensors never generate a collision response.
 	virtual float _get_shape_friction() const { return 0.6f; }

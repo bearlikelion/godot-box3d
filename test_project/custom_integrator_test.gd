@@ -47,7 +47,7 @@ func _run() -> void:
 		quit(1)
 		return
 
-	var omitted := _make_body(RigidBody3D.new(), Vector3(0, 5, 0))
+	var omitted: RigidBody3D = _make_body(RigidBody3D.new(), Vector3(0, 5, 0))
 	omitted.custom_integrator = true
 	omitted.linear_damp = 8.0
 	omitted.angular_damp = 8.0
@@ -55,22 +55,22 @@ func _run() -> void:
 	omitted.add_constant_central_force(Vector3(0, -100, 0))
 	omitted.apply_central_force(Vector3(0, -100, 0))
 
-	var callback_body := _make_body(CallbackBody.new(), Vector3(5, 2, 0)) as CallbackBody
+	var callback_body: CallbackBody = _make_body(CallbackBody.new(), Vector3(5, 2, 0)) as CallbackBody
 	callback_body.custom_integrator = true
 
-	var builtin_body := _make_body(BuiltinIntegrationBody.new(), Vector3(10, 5, 0)) as BuiltinIntegrationBody
+	var builtin_body: BuiltinIntegrationBody = _make_body(BuiltinIntegrationBody.new(), Vector3(10, 5, 0)) as BuiltinIntegrationBody
 	builtin_body.custom_integrator = true
 
-	var impulse_body := _make_body(RigidBody3D.new(), Vector3(15, 2, 0))
+	var impulse_body: RigidBody3D = _make_body(RigidBody3D.new(), Vector3(15, 2, 0))
 	impulse_body.custom_integrator = true
 	impulse_body.apply_central_impulse(Vector3(2, 0, 0))
 
-	var standard_force_body := _make_body(RigidBody3D.new(), Vector3(20, 2, 0))
+	var standard_force_body: RigidBody3D = _make_body(RigidBody3D.new(), Vector3(20, 2, 0))
 	standard_force_body.gravity_scale = 0.0
 	standard_force_body.add_constant_central_force(Vector3(4, 0, 0))
 	standard_force_body.apply_central_force(Vector3(4, 0, 0))
 
-	var detaching_body := _make_body(DetachingBody.new(), Vector3(25, 2, 0)) as DetachingBody
+	var detaching_body: DetachingBody = _make_body(DetachingBody.new(), Vector3(25, 2, 0)) as DetachingBody
 	detaching_body.custom_integrator = true
 
 	for frame in 60:
@@ -104,8 +104,8 @@ func _run() -> void:
 func _make_body(body: RigidBody3D, position: Vector3) -> RigidBody3D:
 	body.position = position
 	body.can_sleep = false
-	var collision_shape := CollisionShape3D.new()
-	var shape := SphereShape3D.new()
+	var collision_shape: CollisionShape3D = CollisionShape3D.new()
+	var shape: SphereShape3D = SphereShape3D.new()
 	shape.radius = 0.5
 	collision_shape.shape = shape
 	body.add_child(collision_shape)
