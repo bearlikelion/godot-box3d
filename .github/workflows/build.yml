@@ -28,7 +28,7 @@ jobs:
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq curl ninja-build unzip
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
@@ -43,6 +43,27 @@ jobs:
 
       - name: Build
         run: cmake --build build --parallel
+
+      - name: Install Godot (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          GODOT_VERSION: 4.7-stable
+          GODOT_ZIP_NAME: Godot_v4.7-stable_linux.x86_64
+        run: |
+          mkdir -p "$RUNNER_TEMP/godot"
+          curl -L --fail --retry 3 \
+            -o "$RUNNER_TEMP/${GODOT_ZIP_NAME}.zip" \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/${GODOT_ZIP_NAME}.zip"
+          unzip -o "$RUNNER_TEMP/${GODOT_ZIP_NAME}.zip" -d "$RUNNER_TEMP/godot"
+          chmod +x "$RUNNER_TEMP/godot/${GODOT_ZIP_NAME}"
+
+      - name: Run headless tests (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          GODOT_BIN: ${{ runner.temp }}/godot/Godot_v4.7-stable_linux.x86_64
+        run: scripts/run_headless_tests.sh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
