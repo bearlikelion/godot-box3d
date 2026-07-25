@@ -45,7 +45,9 @@ public:
 
 	void set_mode(BodyMode p_mode);
 
-	real_t get_mass() const;
+	// Godot semantics: mass is always the explicitly set value (default 1.0), never
+	// derived from shape volume like native Box3D.
+	real_t get_mass() const { return mass; }
 
 	void set_mass(real_t p_mass);
 
@@ -100,6 +102,10 @@ public:
 	void apply_runtime_area_state(const Vector3& p_total_gravity, real_t p_linear_damping, real_t p_angular_damping);
 
 	void clear_runtime_area_state() { runtime_area_state_valid = false; }
+
+	bool is_omitting_force_integration() const { return omit_force_integration; }
+
+	void set_omit_force_integration(bool p_enabled);
 
 	Vector3 get_linear_velocity() const;
 
@@ -157,8 +163,8 @@ public:
 
 	void set_constant_torque(const Vector3& p_torque);
 
-	// Called by Box3DSpace3D::pre_step() before b3World_Step: Box3D has no persistent
-	// "constant force" concept, so it must be reapplied every step.
+	// Called before b3World_Step to apply transient and constant force accumulators when
+	// standard force integration is enabled, then clear the transient accumulators.
 	void pre_step();
 
 	void set_state_sync_callback(const Callable& p_callable) { state_sync_callback = p_callable; }
@@ -203,14 +209,19 @@ protected:
 
 	float _get_shape_restitution() const override { return (float)bounce; }
 
+	void _shapes_changed() override { _refresh_mass_data(); }
+
 private:
 	void _update_motion_locks();
+
+	void _sync_force_integration_settings();
+
+	void _refresh_mass_data();
 
 	BodyMode mode = PhysicsServer3D::BODY_MODE_RIGID;
 
 	real_t mass = 1.0;
 	Vector3 inertia;
-	bool use_custom_mass = false;
 	bool use_custom_inertia = false;
 	bool use_custom_center_of_mass = false;
 	Vector3 center_of_mass_custom;
@@ -229,6 +240,7 @@ private:
 	real_t sleep_threshold = 0.05f;
 	bool sleep_enabled = true;
 	bool ccd_enabled = false;
+	bool omit_force_integration = false;
 
 	Vector3 initial_linear_velocity;
 	Vector3 initial_angular_velocity;
@@ -242,6 +254,8 @@ private:
 
 	Vector3 constant_force;
 	Vector3 constant_torque;
+	Vector3 applied_force;
+	Vector3 applied_torque;
 
 	Callable state_sync_callback;
 	Callable force_integration_callback;

@@ -845,12 +845,15 @@ double Box3DPhysicsServer3D::_body_get_contacts_reported_depth_threshold(const R
 }
 
 void Box3DPhysicsServer3D::_body_set_omit_force_integration(const RID& p_body, bool p_enable) {
-	// Not applicable: Box3D has no separate "omit force integration" concept; the
-	// force_integration_callback (when set) is simply the sole source of forces for v1.
+	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL(body);
+	body->set_omit_force_integration(p_enable);
 }
 
 bool Box3DPhysicsServer3D::_body_is_omitting_force_integration(const RID& p_body) const {
-	return false;
+	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL_V(body, false);
+	return body->is_omitting_force_integration();
 }
 
 void Box3DPhysicsServer3D::_body_set_state_sync_callback(const RID& p_body, const Callable& p_callable) {
@@ -1321,13 +1324,16 @@ void Box3DPhysicsServer3D::_free_rid(const RID& p_rid) {
 }
 
 void Box3DPhysicsServer3D::_set_active(bool p_active) {
-	// Individual space activation is handled via _space_set_active; nothing global to do.
+	active = p_active;
 }
 
 void Box3DPhysicsServer3D::_init() {
 }
 
 void Box3DPhysicsServer3D::_step(double p_step) {
+	if (!active) {
+		return;
+	}
 	for (Box3DSpace3D* space : active_spaces) {
 		space->step((float)p_step);
 	}
@@ -1337,6 +1343,9 @@ void Box3DPhysicsServer3D::_sync() {
 }
 
 void Box3DPhysicsServer3D::_flush_queries() {
+	if (!active) {
+		return;
+	}
 	for (Box3DSpace3D* space : active_spaces) {
 		space->flush_queries();
 	}
