@@ -28,6 +28,7 @@ b3ShapeId create_box3d_shape(
 		uint32_t p_layer,
 		uint32_t p_mask,
 		bool p_is_sensor,
+		void* p_user_data,
 		float p_friction,
 		float p_restitution) {
 	Box3DShapeImpl3D* shape = p_instance.get_shape();
@@ -36,6 +37,7 @@ b3ShapeId create_box3d_shape(
 	}
 
 	b3ShapeDef def = b3DefaultShapeDef();
+	def.userData = p_user_data;
 	def.filter = box3d_godot_shape_filter(p_layer, p_mask);
 	def.isSensor = p_is_sensor;
 	def.enableCustomFiltering = true;
@@ -205,6 +207,7 @@ void Box3DShapedObjectImpl3D::add_shape(Box3DShapeImpl3D* p_shape, const Transfo
 
 	if (has_body_id()) {
 		_create_shape_instance(shapes[shapes.size() - 1]);
+		_shapes_changed();
 	}
 }
 
@@ -223,6 +226,7 @@ void Box3DShapedObjectImpl3D::remove_shape(int32_t p_index) {
 	for (uint32_t i = p_index; i < shapes.size(); i++) {
 		shapes[i].set_index(i);
 	}
+	_shapes_changed();
 }
 
 void Box3DShapedObjectImpl3D::set_shape(int32_t p_index, Box3DShapeImpl3D* p_shape) {
@@ -232,6 +236,7 @@ void Box3DShapedObjectImpl3D::set_shape(int32_t p_index, Box3DShapeImpl3D* p_sha
 	if (has_body_id()) {
 		_create_shape_instance(shapes[p_index]);
 	}
+	_shapes_changed();
 }
 
 void Box3DShapedObjectImpl3D::clear_shapes() {
@@ -239,6 +244,7 @@ void Box3DShapedObjectImpl3D::clear_shapes() {
 		_destroy_shape_instance(shapes[i]);
 	}
 	shapes.clear();
+	_shapes_changed();
 }
 
 Box3DShapeImpl3D* Box3DShapedObjectImpl3D::get_shape(int32_t p_index) const {
@@ -258,6 +264,7 @@ void Box3DShapedObjectImpl3D::set_shape_transform(int32_t p_index, const Transfo
 	if (instance.has_shape_id()) {
 		_destroy_shape_instance(instance);
 		_create_shape_instance(instance);
+		_shapes_changed();
 	}
 }
 
@@ -278,6 +285,7 @@ void Box3DShapedObjectImpl3D::set_shape_disabled(int32_t p_index, bool p_disable
 	} else if (has_body_id()) {
 		_create_shape_instance(instance);
 	}
+	_shapes_changed();
 }
 
 void Box3DShapedObjectImpl3D::set_space(Box3DSpace3D* p_space) {
@@ -310,6 +318,7 @@ void Box3DShapedObjectImpl3D::rebuild_shapes() {
 			_create_shape_instance(instance);
 		}
 	}
+	_shapes_changed();
 }
 
 void Box3DShapedObjectImpl3D::refilter_shapes() {
@@ -371,7 +380,7 @@ void Box3DShapedObjectImpl3D::_create_shape_instance(Box3DShapeInstance3D& p_ins
 	if (p_instance.has_shape_id() || !has_body_id()) {
 		return;
 	}
-	const b3ShapeId shape_id = create_box3d_shape(body_id, p_instance, collision_layer, collision_mask, _is_sensor_body(), _get_shape_friction(), _get_shape_restitution());
+	const b3ShapeId shape_id = create_box3d_shape(body_id, p_instance, collision_layer, collision_mask, _is_sensor_body(), &p_instance, _get_shape_friction(), _get_shape_restitution());
 	p_instance.set_shape_id(shape_id);
 }
 

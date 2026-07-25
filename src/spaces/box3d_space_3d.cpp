@@ -306,7 +306,7 @@ void Box3DSpace3D::_apply_area_overrides(const Vector3& p_default_gravity) {
 		body->apply_runtime_area_state(scaled_total_gravity, linear_damping, angular_damping);
 
 		const Vector3 extra_gravity = (unscaled_total_gravity - p_default_gravity) * gravity_scale;
-		if (!extra_gravity.is_zero_approx()) {
+		if (!body->is_omitting_force_integration() && !extra_gravity.is_zero_approx()) {
 			b3Body_ApplyForceToCenter(body->get_body_id(), godot_to_b3(extra_gravity * (float)body->get_mass()), false);
 		}
 	}

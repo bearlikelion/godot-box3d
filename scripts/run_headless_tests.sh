@@ -41,6 +41,8 @@ printf '%s\n' 'res://addons/godot-box3d/godot-box3d.gdextension' > "$godot_metad
 
 tests=(
     backend_activation_test.gd
+    collision_filter_test.gd
+    custom_integrator_test.gd
     review_regression_test.gd
     physics_contract_test.gd
     ray_pickability_test.gd

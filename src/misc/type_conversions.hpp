@@ -62,6 +62,28 @@ _FORCE_INLINE_ b3AABB godot_to_b3(const AABB& p_aabb) {
 	return aabb;
 }
 
+// Box3D requires both objects to accept each other, while Godot creates a collision
+// pair when either object's mask accepts the other object's layer. Packing Godot's
+// 32-bit layer and mask into opposite halves of Box3D's 64-bit fields makes both of
+// Box3D's tests evaluate to the same Godot OR expression:
+//
+//   (mask_a & layer_b) != 0 || (layer_a & mask_b) != 0
+_FORCE_INLINE_ b3Filter godot_to_b3_filter(uint32_t p_layer, uint32_t p_mask) {
+	b3Filter filter = b3DefaultFilter();
+	filter.categoryBits = (uint64_t)p_layer | ((uint64_t)p_mask << 32);
+	filter.maskBits = (uint64_t)p_mask | ((uint64_t)p_layer << 32);
+	return filter;
+}
+
+// Godot direct-space queries only compare their collision mask with a target's layer.
+// Mirror that comparison into both halves expected by Box3D's symmetric query filter.
+_FORCE_INLINE_ b3QueryFilter godot_to_b3_query_filter(uint32_t p_collision_mask) {
+	b3QueryFilter filter = b3DefaultQueryFilter();
+	filter.categoryBits = (uint64_t)p_collision_mask << 32;
+	filter.maskBits = (uint64_t)p_collision_mask;
+	return filter;
+}
+
 _FORCE_INLINE_ Plane b3_to_godot(const b3Plane& p_plane) {
 	return Plane(b3_to_godot(p_plane.normal), p_plane.offset);
 }
