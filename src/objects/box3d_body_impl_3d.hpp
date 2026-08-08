@@ -24,6 +24,8 @@ struct Box3DContactPoint3D {
 	Vector3 collider_velocity;
 	RID collider_rid;
 	uint64_t collider_instance_id = 0;
+	int32_t local_shape = -1;
+	int32_t collider_shape = -1;
 };
 
 // RigidBody-facing wrapper: static/kinematic/dynamic bodies. Box3D requires a valid world

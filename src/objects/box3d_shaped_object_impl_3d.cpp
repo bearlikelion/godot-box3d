@@ -260,6 +260,17 @@ b3ShapeId Box3DShapedObjectImpl3D::get_shape_id(int32_t p_index) const {
 	return shapes[p_index].get_shape_id();
 }
 
+int32_t Box3DShapedObjectImpl3D::find_shape_index(b3ShapeId p_shape_id) const {
+	// LocalVector can relocate its elements, so resolve the stable Box3D ID rather than
+	// storing shape-instance pointers as user data.
+	for (uint32_t i = 0; i < shapes.size(); i++) {
+		if (shapes[i].has_shape_id() && B3_ID_EQUALS(shapes[i].get_shape_id(), p_shape_id)) {
+			return (int32_t)i;
+		}
+	}
+	return -1;
+}
+
 bool Box3DShapedObjectImpl3D::has_shape_id(int32_t p_index) const {
 	ERR_FAIL_INDEX_V(p_index, (int32_t)shapes.size(), false);
 	return shapes[p_index].has_shape_id();
@@ -343,7 +354,7 @@ void Box3DShapedObjectImpl3D::_create_shape_instance(Box3DShapeInstance3D& p_ins
 	if (p_instance.has_shape_id() || !has_body_id()) {
 		return;
 	}
-	const b3ShapeId shape_id = create_box3d_shape(body_id, p_instance, collision_layer, collision_mask, _is_sensor_body(), &p_instance, _get_shape_friction(), _get_shape_restitution());
+	const b3ShapeId shape_id = create_box3d_shape(body_id, p_instance, collision_layer, collision_mask, _is_sensor_body(), this, _get_shape_friction(), _get_shape_restitution());
 	p_instance.set_shape_id(shape_id);
 }
 
