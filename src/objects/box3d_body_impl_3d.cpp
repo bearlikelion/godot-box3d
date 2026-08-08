@@ -404,10 +404,12 @@ void Box3DBodyImpl3D::refresh_contacts() {
 		auto* object_a = static_cast<Box3DShapedObjectImpl3D*>(b3Body_GetUserData(body_a));
 		const bool self_is_a = object_a == this;
 		const b3BodyId other_id = self_is_a ? body_b : body_a;
+		const b3ShapeId self_shape_id = self_is_a ? pair.shapeIdA : pair.shapeIdB;
+		const b3ShapeId other_shape_id = self_is_a ? pair.shapeIdB : pair.shapeIdA;
 
 		// Areas share the userData slot as a sibling class, so a static_cast would yield garbage.
-		auto* other = dynamic_cast<Box3DBodyImpl3D*>(
-				static_cast<Box3DShapedObjectImpl3D*>(b3Body_GetUserData(other_id)));
+		auto* other_object = static_cast<Box3DShapedObjectImpl3D*>(b3Body_GetUserData(other_id));
+		auto* other = dynamic_cast<Box3DBodyImpl3D*>(other_object);
 
 		const b3Vec3 other_center = b3Body_GetWorldCenter(other_id);
 
@@ -432,6 +434,8 @@ void Box3DBodyImpl3D::refresh_contacts() {
 				contact.impulse = normal * (real_t)point.totalNormalImpulse;
 				contact.local_velocity = b3_to_godot(b3Body_GetWorldPointVelocity(body_id, self_point));
 				contact.collider_position = b3_to_godot(other_point);
+				contact.local_shape = find_shape_index(self_shape_id);
+				contact.collider_shape = other_object != nullptr ? other_object->find_shape_index(other_shape_id) : -1;
 				if (other != nullptr) {
 					contact.collider_velocity = b3_to_godot(b3Body_GetWorldPointVelocity(other_id, other_point));
 					contact.collider_rid = other->get_rid();

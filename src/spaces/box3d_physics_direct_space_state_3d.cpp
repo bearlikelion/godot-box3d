@@ -57,7 +57,7 @@ bool overlap_result_fcn(b3ShapeId p_shape_id, void* p_context) {
 	PhysicsServer3DExtensionShapeResult& result = ctx->results[ctx->count];
 	result.rid = object->get_rid();
 	result.collider_id = object->get_instance_id();
-	result.shape = 0;
+	result.shape = object->find_shape_index(p_shape_id);
 	ctx->count++;
 	return true;
 }
@@ -142,15 +142,6 @@ float cast_result_fcn(b3ShapeId p_shape_id, b3Pos p_point, b3Vec3 p_normal, floa
 	return p_fraction;
 }
 
-int32_t find_shape_index(const Box3DShapedObjectImpl3D& p_object, b3ShapeId p_shape_id) {
-	for (int32_t i = 0; i < p_object.get_shape_count(); i++) {
-		if (p_object.has_shape_id(i) && B3_ID_EQUALS(p_object.get_shape_id(i), p_shape_id)) {
-			return i;
-		}
-	}
-	return -1;
-}
-
 struct MotionCollisionData {
 	Box3DShapedObjectImpl3D* object = nullptr;
 	Vector3 position;
@@ -211,7 +202,7 @@ float motion_cast_result_fcn(
 		return -1.0f;
 	}
 
-	const int32_t collider_shape = find_shape_index(*object, p_shape_id);
+	const int32_t collider_shape = object->find_shape_index(p_shape_id);
 	MotionCollisionData collision;
 	collision.object = object;
 	collision.position = b3_to_godot(p_point);
@@ -328,7 +319,7 @@ bool recovery_result_fcn(b3ShapeId p_shape_id, void* p_context) {
 	collision.normal = normal;
 	collision.depth = depth;
 	collision.local_shape = ctx->local_shape;
-	collision.collider_shape = find_shape_index(*object, p_shape_id);
+	collision.collider_shape = object->find_shape_index(p_shape_id);
 	append_motion_collision(*ctx->collisions, collision);
 	return true;
 }
@@ -391,7 +382,7 @@ bool Box3DPhysicsDirectSpaceState3D::_intersect_ray(
 	p_result->normal = b3_to_godot(context.normal);
 	p_result->rid = object->get_rid();
 	p_result->collider_id = object->get_instance_id();
-	p_result->shape = 0;
+	p_result->shape = object->find_shape_index(context.shape_id);
 	return true;
 }
 
@@ -580,7 +571,7 @@ bool Box3DPhysicsDirectSpaceState3D::_rest_info(
 	p_info->normal = b3_to_godot(context.normal);
 	p_info->rid = object->get_rid();
 	p_info->collider_id = object->get_instance_id();
-	p_info->shape = 0;
+	p_info->shape = object->find_shape_index(context.shape_id);
 
 	auto* body = dynamic_cast<Box3DBodyImpl3D*>(object);
 	if (body != nullptr) {

@@ -38,7 +38,7 @@ The trade is structural. `PhysicsServer3D` has no entry point for `b3World_Explo
 
 Use this if you have an existing project or want stock nodes and addons to work. Use box3d-godot if you want Box3D's own feature surface and don't mind building scenes around its nodes. Neither is production-ready.
 
-**Currently behind box3d-godot on:** *joint types, ConeTwist and 6DOF, per-shape indices in query results, profiling, and platforms.*
+**Currently behind box3d-godot on:** *joint types, ConeTwist and 6DOF, profiling, and platforms.*
 
 ## What works
 
@@ -48,10 +48,11 @@ Use this if you have an existing project or want stock nodes and addons to work.
 - Direct space state queries: ray casts, point and shape intersection, shape casts (`cast_motion`), `collide_shape`, and `rest_info`
 - `body_test_motion`, so `CharacterBody3D` and `move_and_slide()` work
 - Contact monitoring, so `RigidBody3D` reports real contact points, normals, and impulses
+- Queries and contact results report per-shape indices for multi-shape bodies
 - Per-pair collision exceptions
 - Joints: pin, hinge, and slider (pin anchors can be moved after creation)
 - Multithreaded solver: the worker count auto-detects physical cores and can be overridden with the `physics/box3d/worker_count` project setting (results are deterministic across worker counts)
-- A test project with a demo hub, a deterministic benchmark, and 19 headless regression tests
+- A test project with a demo hub, a deterministic benchmark, and a headless regression suite
 
 ## What's left to do
 
@@ -59,7 +60,6 @@ Use this if you have an existing project or want stock nodes and addons to work.
 - ConeTwist joints
 - `Generic6DOFJoint3D` (Box3D has no per-axis lock/limit/motor constraint, so there is no faithful mapping; use `PinJoint3D`, `HingeJoint3D`, or `SliderJoint3D` instead)
 - `SoftBody3D`
-- Per-shape indices in query and contact results (multi-shape bodies always report shape 0)
 - Solver profiling
 - macOS support: universal binaries and notarization (arm64 builds compile but are untested)
 - More platforms and architectures (currently Linux and Windows)
@@ -155,7 +155,7 @@ cmake --build build-win --parallel
 GODOT_BIN=/path/to/godot scripts/run_headless_tests.sh
 ```
 
-The runner builds the extension, registers it, checks the Box3D backend actually loaded, then runs 19 headless regression tests. It exits nonzero if a test fails or leaks a Box3D RID. `GODOT_BIN` can be omitted when a suitable `godot` is on `PATH`.
+The runner builds the extension, registers it, checks the Box3D backend actually loaded, then runs the headless regression suite. It exits nonzero if a test fails or leaks a Box3D RID. `GODOT_BIN` can be omitted when a suitable `godot` is on `PATH`.
 
 ## Contributing
 

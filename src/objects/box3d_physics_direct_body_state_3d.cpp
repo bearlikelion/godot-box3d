@@ -186,8 +186,9 @@ Vector3 Box3DPhysicsDirectBodyState3D::_get_contact_impulse(int32_t p_index) con
 }
 
 int32_t Box3DPhysicsDirectBodyState3D::_get_contact_local_shape(int32_t p_index) const {
-	// Shape userData carries no stable index yet, so multi-shape bodies always report 0.
-	return 0;
+	const LocalVector<Box3DContactPoint3D>& contacts = body->get_contacts();
+	ERR_FAIL_INDEX_V(p_index, (int32_t)contacts.size(), -1);
+	return contacts[p_index].local_shape;
 }
 
 Vector3 Box3DPhysicsDirectBodyState3D::_get_contact_local_velocity_at_position(int32_t p_index) const {
@@ -225,8 +226,9 @@ Object* Box3DPhysicsDirectBodyState3D::_get_contact_collider_object(int32_t p_in
 }
 
 int32_t Box3DPhysicsDirectBodyState3D::_get_contact_collider_shape(int32_t p_index) const {
-	// See _get_contact_local_shape.
-	return 0;
+	const LocalVector<Box3DContactPoint3D>& contacts = body->get_contacts();
+	ERR_FAIL_INDEX_V(p_index, (int32_t)contacts.size(), -1);
+	return contacts[p_index].collider_shape;
 }
 
 Vector3 Box3DPhysicsDirectBodyState3D::_get_contact_collider_velocity_at_position(int32_t p_index) const {
