@@ -86,6 +86,15 @@ run_test() {
 		test_status=1
 	fi
 
+	if (( test_status == 0 )) && {
+		[[ "$test_output" == *"ERROR:"* ]] ||
+			[[ "$test_output" == *"SCRIPT ERROR:"* ]] ||
+			[[ "$test_output" == *"RESULT: FAIL"* ]]
+	}; then
+		printf 'ERROR: %s emitted an unexpected error or failure marker.\n' "$test_script" >&2
+		test_status=1
+	fi
+
 	if (( test_status == 0 )); then
 		passed_tests+=("$test_script")
 	else
