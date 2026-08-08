@@ -112,8 +112,6 @@ struct AreaPriorityComparator {
 
 Box3DSpace3D::AreaOverrides Box3DSpace3D::compute_area_overrides(Box3DBodyImpl3D* p_body) const {
 	AreaOverrides result;
-	result.linear_damp = p_body->get_linear_damping();
-	result.angular_damp = p_body->get_angular_damping();
 
 	LocalVector<Box3DAreaImpl3D*> overlapping;
 	for (Box3DAreaImpl3D* area : areas) {
@@ -125,9 +123,6 @@ Box3DSpace3D::AreaOverrides Box3DSpace3D::compute_area_overrides(Box3DBodyImpl3D
 		if (area->get_overlaps().has(p_body)) {
 			overlapping.push_back(area);
 		}
-	}
-	if (overlapping.is_empty()) {
-		return result;
 	}
 	overlapping.sort_custom<AreaPriorityComparator>();
 
@@ -208,6 +203,24 @@ Box3DSpace3D::AreaOverrides Box3DSpace3D::compute_area_overrides(Box3DBodyImpl3D
 					break;
 			}
 		}
+	}
+
+	if (!linear_done && default_area != nullptr) {
+		result.linear_damp += default_area->get_linear_damp();
+	}
+	if (!angular_done && default_area != nullptr) {
+		result.angular_damp += default_area->get_angular_damp();
+	}
+
+	if (p_body->get_linear_damp_mode() == PhysicsServer3D::BODY_DAMP_MODE_REPLACE) {
+		result.linear_damp = p_body->get_linear_damping();
+	} else {
+		result.linear_damp += p_body->get_linear_damping();
+	}
+	if (p_body->get_angular_damp_mode() == PhysicsServer3D::BODY_DAMP_MODE_REPLACE) {
+		result.angular_damp = p_body->get_angular_damping();
+	} else {
+		result.angular_damp += p_body->get_angular_damping();
 	}
 
 	return result;
