@@ -43,6 +43,13 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 	target_compile_options(godot-box3d PRIVATE -Wall)
 endif()
 
+# GitHub's Windows runner and the documented Ninja build select MinGW. Its default shared
+# runtime dependencies are not shipped with the addon, so a release DLL otherwise fails to
+# load with Windows error 126 on a clean Godot installation.
+if(MINGW)
+	target_link_options(godot-box3d PRIVATE -static-libgcc -static-libstdc++ -static)
+endif()
+
 # The .gdextension expects "godot-box3d.dll" on Windows but "libgodot-box3d.so/.dylib"
 # elsewhere, so the prefix is per-platform rather than a blanket "lib".
 if(WIN32)

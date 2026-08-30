@@ -45,6 +45,28 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
+      - name: Install Godot (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          GODOT_VERSION: 4.7-stable
+          GODOT_ARCHIVE: Godot_v4.7-stable_win64.exe.zip
+        run: |
+          mkdir -p "$RUNNER_TEMP/godot"
+          curl -L --fail --retry 3 \
+            -o "$RUNNER_TEMP/${GODOT_ARCHIVE}" \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/${GODOT_ARCHIVE}"
+          unzip -o "$RUNNER_TEMP/${GODOT_ARCHIVE}" -d "$RUNNER_TEMP/godot"
+
+      - name: Run headless tests (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          GODOT_BIN: ${{ runner.temp }}/godot/Godot_v4.7-stable_win64.exe
+          TEST_SUMMARY: ${{ runner.temp }}/test-summary.md
+          BUILD_DIR: ${{ github.workspace }}/build
+        run: scripts/run_headless_tests.sh
+
       - name: Install Godot (Linux)
         if: runner.os == 'Linux'
         shell: bash
@@ -68,7 +90,7 @@ jobs:
         run: scripts/run_headless_tests.sh
 
       - name: Publish test summary
-        if: runner.os == 'Linux' && always()
+        if: (runner.os == 'Linux' || runner.os == 'Windows') && always()
         shell: bash
         run: |
           if [[ -f "$RUNNER_TEMP/test-summary.md" ]]; then
