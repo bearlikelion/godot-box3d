@@ -40,10 +40,42 @@ jobs:
         run: choco install ninja
 
       - name: Configure
+        if: runner.os != 'macOS'
         run: cmake -B build -G "${{ matrix.cmake-generator }}"
+
+      - name: Configure universal macOS build
+        if: runner.os == 'macOS'
+        run: >-
+          cmake -B build -G "${{ matrix.cmake-generator }}"
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
 
       - name: Build
         run: cmake --build build --parallel
+
+      - name: Verify universal macOS binary
+        if: runner.os == 'macOS'
+        run: lipo bin/libgodot-box3d.dylib -verify_arch arm64 x86_64
+
+      - name: Install Godot (macOS)
+        if: runner.os == 'macOS'
+        env:
+          GODOT_VERSION: 4.7-stable
+          GODOT_ARCHIVE: Godot_v4.7-stable_macos.universal.zip
+        run: |
+          mkdir -p "$RUNNER_TEMP/godot"
+          curl -L --fail --retry 3 \
+            -o "$RUNNER_TEMP/${GODOT_ARCHIVE}" \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/${GODOT_ARCHIVE}"
+          unzip -o "$RUNNER_TEMP/${GODOT_ARCHIVE}" -d "$RUNNER_TEMP/godot"
+          chmod +x "$RUNNER_TEMP/godot/Godot.app/Contents/MacOS/Godot"
+
+      - name: Run headless tests (macOS)
+        if: runner.os == 'macOS'
+        env:
+          GODOT_BIN: ${{ runner.temp }}/godot/Godot.app/Contents/MacOS/Godot
+          TEST_SUMMARY: ${{ runner.temp }}/test-summary.md
+          BUILD_DIR: ${{ github.workspace }}/build
+        run: scripts/run_headless_tests.sh
 
       - name: Install Godot (Linux)
         if: runner.os == 'Linux'
@@ -68,7 +100,7 @@ jobs:
         run: scripts/run_headless_tests.sh
 
       - name: Publish test summary
-        if: runner.os == 'Linux' && always()
+        if: (runner.os == 'Linux' || runner.os == 'macOS') && always()
         shell: bash
         run: |
           if [[ -f "$RUNNER_TEMP/test-summary.md" ]]; then

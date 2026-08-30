@@ -17,7 +17,7 @@ Different projects solving different problems, so this is a comparison rather th
 | Joints | 3 (pin, hinge, slider) | 8 (adds ball, fixed, motor, wheel, parallel, distance) |
 | Vehicles | `VehicleBody3D` (raycast) | `Box3DWheelJoint` (real constraint) |
 | Heightfields | Yes | No |
-| Platforms | Linux, Windows (macOS arm64, untested) | + Android, web |
+| Platforms | Linux, Windows (macOS universal, experimental) | + Android, web |
 | Box3D-only features | Not reachable | Explosions, gyroscopic torque, solver profiling, async stepping |
 
 ## The trade

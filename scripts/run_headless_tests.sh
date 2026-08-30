@@ -63,12 +63,17 @@ write_summary() {
 		fi
 		printf '| Result | Test |\n|---|---|\n'
 		local test_script
-		for test_script in "${failed_tests[@]}"; do
-			printf '| FAIL | `%s` |\n' "$test_script"
-		done
-		for test_script in "${passed_tests[@]}"; do
-			printf '| pass | `%s` |\n' "$test_script"
-		done
+		# Bash 3.2 on the macOS runner treats an empty array expansion as unset with `set -u`.
+		if (( ${#failed_tests[@]} > 0 )); then
+			for test_script in "${failed_tests[@]}"; do
+				printf '| FAIL | `%s` |\n' "$test_script"
+			done
+		fi
+		if (( ${#passed_tests[@]} > 0 )); then
+			for test_script in "${passed_tests[@]}"; do
+				printf '| pass | `%s` |\n' "$test_script"
+			done
+		fi
 	} > "$TEST_SUMMARY"
 }
 

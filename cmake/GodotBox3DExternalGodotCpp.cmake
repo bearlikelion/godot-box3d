@@ -55,7 +55,17 @@ if(CMAKE_TOOLCHAIN_FILE)
 	list(APPEND GODOT_CPP_TOOLCHAIN_ARGS "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}")
 endif()
 
+# Keep the external godot-cpp archive architecture-compatible with this extension. Without
+# forwarding this value, a universal extension configure still produces a host-only godot-cpp
+# archive and fails when the second architecture is linked.
+set(GODOT_CPP_PLATFORM_ARGS "")
+if(APPLE AND CMAKE_OSX_ARCHITECTURES)
+	string(REPLACE ";" "|" GODOT_CPP_OSX_ARCHITECTURES "${CMAKE_OSX_ARCHITECTURES}")
+	list(APPEND GODOT_CPP_PLATFORM_ARGS "-DCMAKE_OSX_ARCHITECTURES=${GODOT_CPP_OSX_ARCHITECTURES}")
+endif()
+
 ExternalProject_Add(godot-cpp-external
+	LIST_SEPARATOR |
 	PREFIX "${GODOT_CPP_PREFIX}"
 	GIT_REPOSITORY "${GODOT_CPP_GIT_REPOSITORY}"
 	GIT_TAG "${GODOT_CPP_GIT_TAG}"
@@ -68,6 +78,7 @@ ExternalProject_Add(godot-cpp-external
 		-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
 		-DCMAKE_POSITION_INDEPENDENT_CODE=ON
 		${GODOT_CPP_TOOLCHAIN_ARGS}
+		${GODOT_CPP_PLATFORM_ARGS}
 		${GODOT_CPP_BUILD_TYPE_ARG}
 	BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> ${GODOT_CPP_BUILD_CONFIG_ARG} --target godot-cpp
 	INSTALL_COMMAND ""

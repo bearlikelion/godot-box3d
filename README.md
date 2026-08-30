@@ -29,7 +29,7 @@ New tech is cool and Godot is great. That's most of it. This is my first time do
 | Joints | 3 (pin, hinge, slider) | 8 (adds ball, fixed, motor, wheel, parallel, distance) |
 | Vehicles | `VehicleBody3D` (raycast) | `Box3DWheelJoint` (real constraint) |
 | Heightfields | Yes | No |
-| Platforms | Linux, Windows (macOS arm64, untested) | + Android, web |
+| Platforms | Linux, Windows (macOS universal, experimental) | + Android, web |
 | Box3D-only features | Not reachable | Explosions, gyroscopic torque, solver profiling, async stepping |
 
 box3d-godot exposes more of Box3D. This project keeps your project working.
@@ -61,7 +61,7 @@ Use this if you have an existing project or want stock nodes and addons to work.
 - `SoftBody3D`
 - Per-shape indices in query and contact results (multi-shape bodies always report shape 0)
 - Solver profiling
-- macOS support: universal binaries and notarization (arm64 builds compile but are untested)
+- macOS support: notarization and runtime validation of both architecture slices
 - More platforms and architectures (currently Linux and Windows)
 - Performance benchmarking and tuning
 
@@ -131,7 +131,7 @@ Then set **Project Settings → Physics → 3D → Physics Engine** to `Box3D Ph
 
 The solver is multithreaded. By default it uses one worker per physical core (efficiency cores and hyperthreads are excluded, since they slow the solver's synchronised stages down). To override it, set `physics/box3d/worker_count` (visible with Advanced Settings on) to an explicit count; `0` means auto. This also needs a restart, and simulation results are identical at any worker count.
 
-> **macOS is a work in progress.** Builds are Apple Silicon (arm64) only and are not notarized, so Intel Macs cannot load the library and Gatekeeper will need convincing on any Mac. Linux and Windows are the tested platforms. macOS is untested beyond compiling, so treat it as unsupported for now.
+> **macOS is a work in progress.** Release artifacts contain a universal arm64/x86_64 library and run the headless physics suite on the GitHub-hosted macOS architecture. The library is not notarized, and the other architecture slice is compile-checked only, so Gatekeeper may block it and macOS should still be treated as experimental.
 
 ## Building
 

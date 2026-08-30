@@ -38,10 +38,9 @@ Worker count changes also need a restart, and simulation results are identical a
 |---|---|
 | Linux x86_64 | Tested |
 | Windows x86_64 | Tested |
-| macOS arm64 | Compiles, untested |
-| macOS x86_64 | Not built |
+| macOS arm64/x86_64 | Universal binary; CI runtime-tests the hosted runner architecture |
 
-macOS is a work in progress. Builds are Apple Silicon only and are not notarized, so Intel Macs cannot load the library and Gatekeeper will need convincing on any Mac.
+macOS is a work in progress. Release artifacts contain a universal arm64/x86_64 library and CI runs the headless physics suite on the hosted runner architecture. The other slice is compile-checked only, and the library is not notarized, so Gatekeeper may block it.
 
 ## Verifying it loaded
 
