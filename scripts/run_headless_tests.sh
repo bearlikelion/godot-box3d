@@ -17,6 +17,9 @@ case "$(uname -s)" in
 	Darwin)
 		extension_filename="libgodot-box3d.dylib"
 		;;
+	MINGW*|MSYS*|CYGWIN*)
+		extension_filename="godot-box3d.dll"
+		;;
 	*)
 		extension_filename="libgodot-box3d.so"
 		;;
@@ -36,7 +39,10 @@ if [[ ! -f "$extension_library" ]]; then
 fi
 
 mkdir -p "$test_addon_bin" "$godot_metadata_dir"
-ln -sf "$extension_library" "$test_addon_bin/$extension_filename"
+# Windows runners do not grant the symlink privilege by default. A real copy also matches
+# how users install the release archive that this test is intended to validate.
+rm -f "$test_addon_bin/$extension_filename"
+cp -f "$extension_library" "$test_addon_bin/$extension_filename"
 
 # Running a script directly does not scan the project for GDExtensions, so register Box3D by
 # hand. Only Box3D: the tests never exercise another backend, and a second GDExtension built
