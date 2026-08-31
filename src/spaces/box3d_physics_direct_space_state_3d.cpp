@@ -6,6 +6,7 @@
 #include "../objects/box3d_body_impl_3d.hpp"
 #include "../objects/box3d_shaped_object_impl_3d.hpp"
 #include "../servers/box3d_physics_server_3d.hpp"
+#include "../shapes/box3d_separation_ray_shape_impl_3d.hpp"
 #include "../shapes/box3d_shape_impl_3d.hpp"
 #include "box3d_query_filter_3d.hpp"
 #include "box3d_space_3d.hpp"
@@ -399,6 +400,7 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 		const Vector3& p_motion,
 		double p_margin,
 		int32_t p_max_collisions,
+		bool p_collide_separation_ray,
 		bool p_recovery_as_collision,
 		PhysicsServer3DExtensionMotionResult* p_result) const {
 	ERR_FAIL_NULL_V(space, false);
@@ -416,28 +418,68 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 		return false;
 	}
 
-	Box3DShapeImpl3D* first_shape = p_body.get_shape(0);
-	if (first_shape == nullptr) {
-		p_result->travel = p_motion;
-		p_result->remainder = Vector3();
-		return false;
-	}
-
 	Box3DQueryFilter3D filter;
 	filter.set_collision_mask(p_body.get_collision_mask());
 	filter.exclude.insert(p_body.get_rid());
 
-	const Box3DShapeProxy3D shape_proxy(first_shape, p_transform * p_body.get_shape_transform(0));
-	if (!shape_proxy.is_supported()) {
-		p_result->travel = p_motion;
-		p_result->remainder = Vector3();
-		return false;
-	}
-
 	RayContext context;
 	context.filter = &filter;
+	int32_t local_shape = -1;
+	Vector3 normal_override;
+	bool cast_regular_shape = true;
 
-	b3World_CastShape(space->get_world_id(), b3Vec3_zero, &shape_proxy.get_proxy(), godot_to_b3(p_motion), filter.filter, cast_result_fcn, &context);
+	for (int32_t i = 0; i < p_body.get_shape_count(); i++) {
+		if (p_body.is_shape_disabled(i)) {
+			continue;
+		}
+		Box3DShapeImpl3D* shape = p_body.get_shape(i);
+		if (shape == nullptr) {
+			continue;
+		}
+
+		const bool is_separation_ray = shape->get_type() == PhysicsServer3D::SHAPE_SEPARATION_RAY;
+		if (is_separation_ray) {
+			const auto* ray = static_cast<const Box3DSeparationRayShapeImpl3D*>(shape);
+			if (!p_collide_separation_ray && !ray->get_slide_on_slope()) {
+				continue;
+			}
+		} else if (!cast_regular_shape) {
+			// Preserve the existing single regular-shape behavior while also considering
+			// every separation ray attached to a typical CharacterBody3D.
+			continue;
+		}
+
+		const Transform3D shape_transform = p_transform * p_body.get_shape_transform(i);
+		const Box3DShapeProxy3D shape_proxy(shape, shape_transform);
+		if (!shape_proxy.is_supported()) {
+			continue;
+		}
+
+		RayContext candidate;
+		candidate.filter = &filter;
+		b3World_CastShape(
+				space->get_world_id(),
+				b3Vec3_zero,
+				&shape_proxy.get_proxy(),
+				godot_to_b3(p_motion),
+				filter.filter,
+				cast_result_fcn,
+				&candidate);
+		if (candidate.has_hit && (!context.has_hit || candidate.fraction < context.fraction)) {
+			context = candidate;
+			local_shape = i;
+			normal_override = Vector3();
+			if (is_separation_ray) {
+				const auto* ray = static_cast<const Box3DSeparationRayShapeImpl3D*>(shape);
+				if (!ray->get_slide_on_slope()) {
+					normal_override = -shape_transform.basis.get_column(2).normalized();
+				}
+			}
+		}
+		if (!is_separation_ray) {
+			cast_regular_shape = false;
+		}
+	}
 
 	if (!context.has_hit) {
 		p_result->travel = p_motion;
@@ -455,10 +497,11 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 	if (other != nullptr && p_max_collisions > 0) {
 		PhysicsServer3DExtensionMotionCollision& collision = p_result->collisions[0];
 		collision.position = b3_to_godot(context.point);
-		collision.normal = b3_to_godot(context.normal);
+		collision.normal = normal_override.is_zero_approx() ? b3_to_godot(context.normal) : normal_override;
 		collision.collider = other->get_rid();
 		collision.collider_id = other->get_instance_id();
 		collision.collider_shape = 0;
+		collision.local_shape = local_shape;
 		collision.depth = 0.0f;
 		p_result->collision_count = 1;
 	}

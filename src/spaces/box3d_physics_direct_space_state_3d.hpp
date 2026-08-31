@@ -94,6 +94,7 @@ public:
 			const Vector3& p_motion,
 			double p_margin,
 			int32_t p_max_collisions,
+			bool p_collide_separation_ray,
 			bool p_recovery_as_collision,
 			PhysicsServer3DExtensionMotionResult* p_result) const;
 

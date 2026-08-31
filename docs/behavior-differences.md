@@ -6,6 +6,12 @@ title: Behavior differences
 
 Places where Box3D behaves differently from Godot's built-in physics. These are design differences in the underlying engine, not bugs, and none of them are things a drop-in backend can paper over.
 
+## Separation rays are query-only
+
+`SeparationRayShape3D` participates in direct shape queries and in `body_test_motion`, including `CharacterBody3D` floor snap and `slide_on_slope`. It does not create a Box3D fixture, so attaching one to a `RigidBody3D` or `Area3D` does not add ordinary contacts or monitoring events.
+
+This keeps the zero-width ray from changing body mass or generating regular collision response. Use it for character motion, which is its intended Godot use; use a finite convex shape when a simulated body or area needs contacts.
+
 ## `Area3D` does not detect trimesh or heightmap bodies
 
 In Box3D a concave shape (`ConcavePolygonShape3D`) or `HeightMapShape3D` can never act as a sensor *visitor*, by design, since testing an arbitrary mesh against a sensor is too expensive.

@@ -16,6 +16,7 @@
 #include "../shapes/box3d_convex_polygon_shape_impl_3d.hpp"
 #include "../shapes/box3d_cylinder_shape_impl_3d.hpp"
 #include "../shapes/box3d_heightmap_shape_impl_3d.hpp"
+#include "../shapes/box3d_separation_ray_shape_impl_3d.hpp"
 #include "../shapes/box3d_shape_impl_3d.hpp"
 #include "../shapes/box3d_sphere_shape_impl_3d.hpp"
 #include "../shapes/box3d_world_boundary_shape_impl_3d.hpp"
@@ -87,7 +88,10 @@ RID Box3DPhysicsServer3D::_world_boundary_shape_create() {
 }
 
 RID Box3DPhysicsServer3D::_separation_ray_shape_create() {
-	ERR_FAIL_V_MSG(RID(), "Box3D: SeparationRayShape3D is not supported in this version of the Box3D extension.");
+	auto* shape = memnew(Box3DSeparationRayShapeImpl3D);
+	const RID rid = shape_owner.make_rid(shape);
+	shape->set_rid(rid);
+	return rid;
 }
 
 RID Box3DPhysicsServer3D::_sphere_shape_create() {
@@ -908,7 +912,15 @@ bool Box3DPhysicsServer3D::_body_test_motion(
 	Box3DSpace3D* space = body->get_space();
 	ERR_FAIL_NULL_V(space, false);
 
-	return space->get_direct_state()->test_body_motion(*body, p_from, p_motion, p_margin, p_max_collisions, p_recovery_as_collision, p_result);
+	return space->get_direct_state()->test_body_motion(
+			*body,
+			p_from,
+			p_motion,
+			p_margin,
+			p_max_collisions,
+			p_collide_separation_ray,
+			p_recovery_as_collision,
+			p_result);
 }
 
 PhysicsDirectBodyState3D* Box3DPhysicsServer3D::_body_get_direct_state(const RID& p_body) {

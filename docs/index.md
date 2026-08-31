@@ -26,7 +26,7 @@ Box3D is worth trying because of where it came from. [Erin Catto](https://x.com/
 ## What works
 
 - Rigid, static, and kinematic bodies
-- Shapes: box, sphere, capsule, cylinder, convex polygon, concave polygon (trimesh), heightmap, and world boundary
+- Shapes: box, sphere, capsule, cylinder, convex polygon, concave polygon (trimesh), heightmap, and world boundary; separation rays work in direct and CharacterBody motion queries
 - Areas, including overlap events, gravity/damping overrides, priority ordering, and point gravity
 - Direct space state queries: ray casts, point and shape intersection, shape casts (`cast_motion`), `collide_shape`, and `rest_info`
 - `body_test_motion`, so `CharacterBody3D` and `move_and_slide()` work
@@ -37,7 +37,6 @@ Box3D is worth trying because of where it came from. [Erin Catto](https://x.com/
 
 ## What's left
 
-- Separation ray shapes
 - ConeTwist joints
 - `Generic6DOFJoint3D` (Box3D has no per-axis lock/limit/motor constraint, so there is no faithful mapping)
 - `SoftBody3D`

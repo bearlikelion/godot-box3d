@@ -53,6 +53,11 @@ b3ShapeId create_box3d_shape(
 	const Transform3D& local = p_instance.get_transform();
 
 	switch (type) {
+		case PhysicsServer3D::SHAPE_SEPARATION_RAY:
+			// Separation rays only participate in motion queries. Giving a zero-width
+			// segment a live fixture would make it affect mass and regular contacts.
+			return b3_nullShapeId;
+
 		case PhysicsServer3D::SHAPE_SPHERE: {
 			auto* sphere_shape = static_cast<Box3DSphereShapeImpl3D*>(shape);
 			b3Sphere sphere;
