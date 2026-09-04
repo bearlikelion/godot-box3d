@@ -55,7 +55,7 @@ bool overlap_result_fcn(b3ShapeId p_shape_id, void* p_context) {
 	PhysicsServer3DExtensionShapeResult& result = ctx->results[ctx->count];
 	result.rid = object->get_rid();
 	result.collider_id = object->get_instance_id();
-	result.shape = 0;
+	result.shape = object->find_shape_index(p_shape_id);
 	ctx->count++;
 	return true;
 }
@@ -180,7 +180,7 @@ bool Box3DPhysicsDirectSpaceState3D::_intersect_ray(
 	p_result->normal = b3_to_godot(context.normal);
 	p_result->rid = object->get_rid();
 	p_result->collider_id = object->get_instance_id();
-	p_result->shape = 0;
+	p_result->shape = object->find_shape_index(context.shape_id);
 	return true;
 }
 
@@ -369,7 +369,7 @@ bool Box3DPhysicsDirectSpaceState3D::_rest_info(
 	p_info->normal = b3_to_godot(context.normal);
 	p_info->rid = object->get_rid();
 	p_info->collider_id = object->get_instance_id();
-	p_info->shape = 0;
+	p_info->shape = object->find_shape_index(context.shape_id);
 
 	auto* body = dynamic_cast<Box3DBodyImpl3D*>(object);
 	if (body != nullptr) {
@@ -458,7 +458,7 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 		collision.normal = b3_to_godot(context.normal);
 		collision.collider = other->get_rid();
 		collision.collider_id = other->get_instance_id();
-		collision.collider_shape = 0;
+		collision.collider_shape = other->find_shape_index(context.shape_id);
 		collision.depth = 0.0f;
 		p_result->collision_count = 1;
 	}

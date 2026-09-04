@@ -38,4 +38,4 @@ Neither is production-ready, and both say so.
 
 ## Where this project is behind
 
-Joint types, ConeTwist and 6DOF, per-shape indices in query results, profiling, and platforms.
+Joint types, ConeTwist and 6DOF, profiling, and platforms.

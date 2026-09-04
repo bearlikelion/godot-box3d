@@ -46,6 +46,8 @@ public:
 
 	b3ShapeId get_shape_id(int32_t p_index) const;
 
+	int32_t find_shape_index(b3ShapeId p_shape_id) const;
+
 	bool has_shape_id(int32_t p_index) const;
 
 	void set_shape_transform(int32_t p_index, const Transform3D& p_transform);
