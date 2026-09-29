@@ -11,10 +11,11 @@
 
 #include <box3d/collision.h>
 
-Box3DShapeProxy3D::Box3DShapeProxy3D(const Box3DShapeImpl3D* p_shape, const Transform3D& p_transform) {
+Box3DShapeProxy3D::Box3DShapeProxy3D(const Box3DShapeImpl3D* p_shape, const Transform3D& p_transform, double p_margin) {
 	if (p_shape == nullptr) {
 		return;
 	}
+	const float margin = MAX(0.0f, (float)p_margin);
 
 	switch (p_shape->get_type()) {
 		case PhysicsServer3D::SHAPE_SPHERE: {
@@ -23,7 +24,7 @@ Box3DShapeProxy3D::Box3DShapeProxy3D(const Box3DShapeImpl3D* p_shape, const Tran
 			points[0] = godot_to_b3(p_transform.origin);
 			proxy.points = points.ptr();
 			proxy.count = 1;
-			proxy.radius = (float)sphere->get_radius();
+			proxy.radius = (float)sphere->get_radius() + margin;
 			supported = true;
 			break;
 		}
@@ -37,7 +38,7 @@ Box3DShapeProxy3D::Box3DShapeProxy3D(const Box3DShapeImpl3D* p_shape, const Tran
 			points[1] = godot_to_b3(p_transform.xform(Vector3(0, -half_seg, 0)));
 			proxy.points = points.ptr();
 			proxy.count = 2;
-			proxy.radius = radius;
+			proxy.radius = radius + margin;
 			supported = true;
 			break;
 		}
@@ -57,7 +58,7 @@ Box3DShapeProxy3D::Box3DShapeProxy3D(const Box3DShapeImpl3D* p_shape, const Tran
 			}
 			proxy.points = points.ptr();
 			proxy.count = 8;
-			proxy.radius = 0.0f;
+			proxy.radius = margin;
 			supported = true;
 			break;
 		}
@@ -78,7 +79,7 @@ Box3DShapeProxy3D::Box3DShapeProxy3D(const Box3DShapeImpl3D* p_shape, const Tran
 			}
 			proxy.points = points.ptr();
 			proxy.count = 2 * sides;
-			proxy.radius = 0.0f;
+			proxy.radius = margin;
 			supported = true;
 			break;
 		}
@@ -100,7 +101,7 @@ Box3DShapeProxy3D::Box3DShapeProxy3D(const Box3DShapeImpl3D* p_shape, const Tran
 			}
 			proxy.points = points.ptr();
 			proxy.count = count;
-			proxy.radius = 0.0f;
+			proxy.radius = margin;
 			supported = true;
 			break;
 		}

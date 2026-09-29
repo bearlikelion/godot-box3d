@@ -17,7 +17,7 @@ class Box3DShapeImpl3D;
 // should fall back to a different strategy (e.g. AABB overlap) for those shape types.
 class Box3DShapeProxy3D {
 public:
-	Box3DShapeProxy3D(const Box3DShapeImpl3D* p_shape, const Transform3D& p_transform);
+	Box3DShapeProxy3D(const Box3DShapeImpl3D* p_shape, const Transform3D& p_transform, double p_margin = 0.0);
 
 	bool is_supported() const { return supported; }
 
