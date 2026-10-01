@@ -605,9 +605,10 @@ void Box3DPhysicsServer3D::_body_set_param(const RID& p_body, PhysicsServer3D::B
 			body->set_gravity_scale(p_value);
 			break;
 		case PhysicsServer3D::BODY_PARAM_LINEAR_DAMP_MODE:
+			body->set_linear_damp_mode((PhysicsServer3D::BodyDampMode)(int)p_value);
+			break;
 		case PhysicsServer3D::BODY_PARAM_ANGULAR_DAMP_MODE:
-			// Box3D always applies damping as a simple replace mode; COMBINE mode has no
-			// direct equivalent and is treated the same as REPLACE.
+			body->set_angular_damp_mode((PhysicsServer3D::BodyDampMode)(int)p_value);
 			break;
 		case PhysicsServer3D::BODY_PARAM_LINEAR_DAMP:
 			body->set_linear_damping(p_value);
@@ -637,8 +638,9 @@ Variant Box3DPhysicsServer3D::_body_get_param(const RID& p_body, PhysicsServer3D
 		case PhysicsServer3D::BODY_PARAM_GRAVITY_SCALE:
 			return body->get_gravity_scale();
 		case PhysicsServer3D::BODY_PARAM_LINEAR_DAMP_MODE:
+			return body->get_linear_damp_mode();
 		case PhysicsServer3D::BODY_PARAM_ANGULAR_DAMP_MODE:
-			return PhysicsServer3D::BODY_DAMP_MODE_COMBINE;
+			return body->get_angular_damp_mode();
 		case PhysicsServer3D::BODY_PARAM_LINEAR_DAMP:
 			return body->get_linear_damping();
 		case PhysicsServer3D::BODY_PARAM_ANGULAR_DAMP:
