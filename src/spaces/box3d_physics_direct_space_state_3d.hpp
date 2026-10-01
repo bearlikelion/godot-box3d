@@ -4,6 +4,7 @@
 #include <godot_cpp/classes/physics_server3d_extension_motion_result.hpp>
 #include <godot_cpp/classes/physics_server3d_extension_shape_rest_info.hpp>
 #include <godot_cpp/classes/physics_server3d_extension_shape_result.hpp>
+#include <godot_cpp/templates/hash_set.hpp>
 
 using namespace godot;
 

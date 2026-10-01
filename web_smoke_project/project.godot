@@ -1,0 +1,23 @@
+; Minimal project used only by the automated browser smoke test.
+config_version=5
+
+[application]
+
+config/name="Godot Box3D Web Smoke"
+run/main_scene="res://smoke_test.tscn"
+config/features=PackedStringArray("4.7")
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=540
+
+[physics]
+
+3d/physics_engine="Box3D Physics"
+box3d/worker_count=8
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

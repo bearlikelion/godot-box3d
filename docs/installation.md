@@ -31,6 +31,7 @@ The restart is required: the physics server is constructed once during engine st
 The solver is multithreaded and defaults to one worker per physical core (efficiency cores and hyperthreads are excluded, since they slow the solver's synchronised stages down).
 To override it, set `physics/box3d/worker_count` (visible with Advanced Settings on) to an explicit count; `0` means auto.
 Worker count changes also need a restart, and simulation results are identical at any worker count.
+The supported no-thread Web profile always uses one worker, regardless of this setting.
 
 ## Platform support
 

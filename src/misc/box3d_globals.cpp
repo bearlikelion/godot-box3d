@@ -36,10 +36,14 @@ void box3d_deinitialize() {
 }
 
 int box3d_worker_count() {
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+	return 1;
+#else
 	static const int count = []() {
 		const int setting = (int)ProjectSettings::get_singleton()->get_setting_with_override(
 				WORKER_COUNT_SETTING);
 		return setting > 0 ? std::clamp(setting, 1, B3_MAX_WORKERS) : box3d_default_worker_count();
 	}();
 	return count;
+#endif
 }

@@ -29,7 +29,7 @@ New tech is cool and Godot is great. That's most of it. This is my first time do
 | Joints | 3 (pin, hinge, slider) | 8 (adds ball, fixed, motor, wheel, parallel, distance) |
 | Vehicles | `VehicleBody3D` (raycast) | `Box3DWheelJoint` (real constraint) |
 | Heightfields | Yes | No |
-| Platforms | Linux, Windows (macOS arm64, untested) | + Android, web |
+| Platforms | Linux, Windows, Web (macOS arm64, untested) | + Android, web |
 | Box3D-only features | Not reachable | Explosions, gyroscopic torque, solver profiling, async stepping |
 
 box3d-godot exposes more of Box3D. This project keeps your project working.
@@ -38,7 +38,7 @@ The trade is structural. `PhysicsServer3D` has no entry point for `b3World_Explo
 
 Use this if you have an existing project or want stock nodes and addons to work. Use box3d-godot if you want Box3D's own feature surface and don't mind building scenes around its nodes. Neither is production-ready.
 
-**Currently behind box3d-godot on:** *joint types, ConeTwist and 6DOF, per-shape indices in query results, profiling, and platforms.*
+**Currently behind box3d-godot on:** *joint types, ConeTwist and 6DOF, per-shape indices in query results, profiling, and Android support.*
 
 ## What works
 
@@ -62,7 +62,7 @@ Use this if you have an existing project or want stock nodes and addons to work.
 - Per-shape indices in query and contact results (multi-shape bodies always report shape 0)
 - Solver profiling
 - macOS support: universal binaries and notarization (arm64 builds compile but are untested)
-- More platforms and architectures (currently Linux and Windows)
+- More platforms and architectures (currently Linux, Windows, and Web)
 - Performance benchmarking and tuning
 
 ## Behavior differences
@@ -129,7 +129,7 @@ your-project/
 
 Then set **Project Settings → Physics → 3D → Physics Engine** to `Box3D Physics` and restart. The physics server is built once at startup, so the change needs a restart.
 
-The solver is multithreaded. By default it uses one worker per physical core (efficiency cores and hyperthreads are excluded, since they slow the solver's synchronised stages down). To override it, set `physics/box3d/worker_count` (visible with Advanced Settings on) to an explicit count; `0` means auto. This also needs a restart, and simulation results are identical at any worker count.
+The solver is multithreaded. By default it uses one worker per physical core (efficiency cores and hyperthreads are excluded, since they slow the solver's synchronised stages down). To override it, set `physics/box3d/worker_count` (visible with Advanced Settings on) to an explicit count; `0` means auto. This also needs a restart, and simulation results are identical at any worker count. The supported no-thread Web profile always uses one worker.
 
 > **macOS is a work in progress.** Builds are Apple Silicon (arm64) only and are not notarized, so Intel Macs cannot load the library and Gatekeeper will need convincing on any Mac. Linux and Windows are the tested platforms. macOS is untested beyond compiling, so treat it as unsupported for now.
 
@@ -139,6 +139,14 @@ The solver is multithreaded. By default it uses one worker per physical core (ef
 cmake -B build
 cmake --build build
 ```
+
+For Web, the quickest supported route builds the extension, matching dynamic-link export templates, and a ready-to-copy bundle:
+
+```sh
+MAX_JOBS=4 scripts/quickstart_web.sh
+```
+
+The result is `dist/godot-box3d-web-release.zip`. See [WEB_QUICKSTART.md](WEB_QUICKSTART.md) for project settings and the Chromium smoke command.
 
 The library lands in `bin/` and is copied into `test_project/addons/godot-box3d/bin/`, so the test project always runs against a fresh build.
 

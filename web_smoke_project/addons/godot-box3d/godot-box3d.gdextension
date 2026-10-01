@@ -1,0 +1,10 @@
+[configuration]
+
+entry_symbol = "godot_box3d_main"
+compatibility_minimum = "4.3"
+reloadable = false
+
+[libraries]
+
+web.wasm32.single.debug = "./bin/web/libgodot-box3d.web.template_debug.wasm32.nothreads.wasm"
+web.wasm32.single.release = "./bin/web/libgodot-box3d.web.template_release.wasm32.nothreads.wasm"
