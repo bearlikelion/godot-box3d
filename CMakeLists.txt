@@ -62,7 +62,15 @@ set_target_properties(godot-box3d PROPERTIES
 	PREFIX "${GODOT_BOX3D_LIB_PREFIX}"
 	OUTPUT_NAME "godot-box3d"
 	POSITION_INDEPENDENT_CODE ON
+	CXX_VISIBILITY_PRESET hidden
+	VISIBILITY_INLINES_HIDDEN ON
 )
+
+# Exported godot-cpp statics become STB_GNU_UNIQUE and get merged with other extensions'
+# copies despite RTLD_DEEPBIND, so only the entry symbol may leave the library.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	target_link_options(godot-box3d PRIVATE -Wl,--exclude-libs,ALL)
+endif()
 
 # Place the built extension where the .gdextension template expects it during local
 # testing. The $<1:...> wrapper stops multi-config generators (Visual Studio, Xcode)
