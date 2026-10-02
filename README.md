@@ -53,6 +53,22 @@ Use this if you have an existing project or want stock nodes and addons to work.
 - Multithreaded solver: the worker count auto-detects physical cores and can be overridden with the `physics/box3d/worker_count` project setting (results are deterministic across worker counts)
 - A test project with a demo hub, a deterministic benchmark, and 19 headless regression tests
 
+## Direct API & code generator
+
+Beyond the `PhysicsServer3D` integration, the repo exposes the full Box3D C API
+directly to GDScript through the static `Box3DAPI` class. It shares the same RID
+space as the server, so objects created by either layer are interchangeable. The
+bindings are generated from the Box3D headers to ease upstream maintenance:
+
+```sh
+tools/generator/setup.sh                                                        # one-time venv setup
+tools/generator/.venv/bin/python tools/generator/generate.py all                # regenerate bindings + docs
+tools/generator/.venv/bin/python tools/generator/generate.py audit              # coverage report (exit 1 on gaps)
+```
+
+Generated output lives in `src/bindings/` and `doc_classes/` (gitignored). See
+`tools/API_BINDING_SPEC.md` for the architecture and current status.
+
 ## What's left to do
 
 - Separation ray shapes

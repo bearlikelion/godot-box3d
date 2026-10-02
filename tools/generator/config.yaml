@@ -1,0 +1,454 @@
+# Type map for Box3D → Godot conversions.
+# Only entries that need special handling. Scalars (int, float, bool, uint*_t, size_t)
+# convert directly. Unknown types are passed through as-is.
+
+# ID types that map to RID with owner metadata
+id_types:
+  b3WorldId:
+    godot: RID
+    owner: space_owner
+    impl: Box3DSpace3D
+    id_field: get_world_id()
+    pack: b3StoreWorldId
+    unpack: b3LoadWorldId
+  b3BodyId:
+    godot: RID
+    owner: body_owner
+    impl: Box3DBodyImpl3D
+    id_field: get_body_id()
+    pack: b3StoreBodyId
+    unpack: b3LoadBodyId
+  b3JointId:
+    godot: RID
+    owner: joint_owner
+    impl: Box3DJointImpl3D
+    id_field: get_joint_id()
+    pack: b3StoreJointId
+    unpack: b3LoadJointId
+
+# Non-RID ID types
+  b3ShapeId:
+    godot: uint64_t
+    pack: b3StoreShapeId
+    unpack: b3LoadShapeId
+
+# Math types with conversion functions
+math_types:
+  b3Vec3:
+    godot: Vector3
+    to_godot: b3_to_godot
+    to_b3: godot_to_b3
+  b3Pos:
+    godot: Vector3
+    to_godot: b3_to_godot
+    to_b3: godot_to_b3
+  b3Quat:
+    godot: Quaternion
+    to_godot: b3_to_godot
+    to_b3: godot_to_b3
+  b3Transform:
+    godot: Transform3D
+    to_godot: b3_to_godot
+    to_b3: godot_to_b3_transform
+  b3WorldTransform:
+    godot: Transform3D
+    to_godot: b3_to_godot
+    to_b3: godot_to_b3_transform
+  b3AABB:
+    godot: AABB
+    to_godot: b3_to_godot
+    to_b3: godot_to_b3
+  b3Plane:
+    godot: Plane
+    to_godot: b3_to_godot
+    to_b3: godot_to_b3
+  b3Matrix3:
+    godot: Basis
+    to_godot: b3_to_godot
+    to_b3: godot_to_b3
+
+# Enum types (map to int) — auto-detected from headers.
+# Use skip_enums to exclude any that shouldn't be treated as int.
+# enums: populated automatically by classification.py from parsed headers.
+
+# Enum blacklist — types parsed as enums but should NOT map to int
+skip_enums:
+  # Debug-draw enums — only used by the skipped debug-draw functions
+  # (b3World_Draw, b3GetGraphColor, b3DefaultDebugDraw). See SCOPE_REVIEW.md group 8.
+  - b3HexColor
+  - b3DebugMaterial
+
+# Skip list: types that can't be converted to Godot
+skip_types:
+  - b3AllocFcn
+  - b3FreeFcn
+  - b3AssertFcn
+  - b3LogFcn
+  - b3TaskCallback
+  - b3EnqueueTaskCallback
+  - b3FinishTaskCallback
+  - b3FrictionCallback
+  - b3RestitutionCallback
+  - b3CustomFilterFcn
+  - b3PreSolveFcn
+  - b3OverlapResultFcn
+  - b3CastResultFcn
+  - b3MoverFilterFcn
+  - b3PlaneResultFcn
+  - b3CreateDebugShapeCallback
+  - b3DestroyDebugShapeCallback
+  - b3TreeQueryCallbackFcn
+  - b3TreeQueryClosestCallbackFcn
+  - b3TreeRayCastCallbackFcn
+  - b3TreeBoxCastCallbackFcn
+  - b3CompoundQueryFcn
+  - b3MeshQueryFcn
+  # Opaque handles (pointer params, not arrays)
+  - b3DynamicTree
+  - b3Recording
+  - b3RecPlayer
+  - b3DebugDraw
+
+# Skip list: functions that can't be auto-generated and will never be bound.
+# These are deliberate policy rejects (out of scope) — NOT things that are
+# hand-written elsewhere. Hand-written functions belong in `handwritten_functions`.
+skip_functions:
+  # Blob data lifetime is owned by the generated Box3D*Data RefCounted classes
+  # (their destructors free the heap blob). A standalone destroy would risk a
+  # double free when the wrapper is released. Never exposed.
+  - b3DestroyHull
+  - b3DestroyMesh
+  - b3DestroyCompound
+  - b3DestroyHeightField
+  # Friction/restitution callbacks — out of scope: invoked per-contact per-solve on
+  # the solver hot path (must be trivial C by Box3D docs), and with workerCount > 1
+  # they fire on physics worker threads where a synchronous Callable return isn't
+  # thread-safe. See API_BINDING_SPEC.md "Callbacks via trampoline" / SCOPE_REVIEW.md group 2.
+  - b3World_SetFrictionCallback
+  - b3World_SetRestitutionCallback
+  # Recording/replay is IN SCOPE (low priority) but not hand-written — it needs the
+  # opaque b3Recording/b3RecPlayer handles modeled (wrapper support), then most of it
+  # auto-generates. Removing it here surfaces those functions as implicit skips/missing
+  # in the audit until the handle modeling lands. See SCOPE_REVIEW.md group 7.
+  # Debug draw — out of scope. The world_dump_* functions auto-generate cleanly and
+  # are kept (see SCOPE_REVIEW.md group 8); only the ones that need a b3DebugDraw
+  # sink or return debug-draw data stay skipped.
+  - b3World_Draw
+  - b3DefaultDebugDraw
+  - b3GetGraphColor
+  # Allocator/assert/log
+  - b3SetAllocator
+  - b3SetAssertFcn
+  - b3SetLogFcn
+  # Trivial/basic helpers not worth exposing through the binding layer
+  # (also declared twice in the C headers, which would duplicate the stub)
+  - b3IsValidFloat
+  - b3DynamicTree_Validate
+  # OS-specific / internal
+  - b3Yield
+  - b3Sleep
+  - b3Hash
+  - b3InternalAssert
+  # Internal / not implemented by Box3D -> linker error
+  - b3World_DumpShapeBounds
+
+# Hand-written functions: intentionally NOT auto-generated because a human
+# implements them in src/api/. The audit verifies each has a matching
+# declaration in src/api/*.hpp; entries without one are reported as
+# `handwritten_missing` (this is what surfaces the missing creation/callback/
+# event layer). Never auto-generate these — they need RID lookup, def-struct
+# conversion, Variant boxing, or trampolines.
+handwritten_functions:
+  # Creation (need RID + def struct conversion)
+  - b3CreateWorld
+  - b3CreateBody
+  - b3CreateSphereShape
+  - b3CreateCapsuleShape
+  - b3CreateHullShape
+  - b3CreateTransformedHullShape
+  - b3CreateMeshShape
+  - b3CreateHeightFieldShape
+  - b3CreateCompoundShape
+  - b3CreateParallelJoint
+  - b3CreateDistanceJoint
+  - b3CreateFilterJoint
+  - b3CreateMotorJoint
+  - b3CreatePrismaticJoint
+  - b3CreateRevoluteJoint
+  - b3CreateSphericalJoint
+  - b3CreateWeldJoint
+  - b3CreateWheelJoint
+  # Destruction (need RID cleanup)
+  - b3DestroyWorld
+  - b3DestroyBody
+  - b3DestroyShape
+  - b3DestroyJoint
+  # Callbacks (need trampolines — wiring is remaining work)
+  - b3World_SetCustomFilterCallback
+  - b3World_SetPreSolveCallback
+  # Query functions with callbacks
+  - b3World_OverlapAABB
+  - b3World_OverlapShape
+  - b3World_CastRay
+  - b3World_CastShape
+  - b3World_CastMover
+  - b3World_CollideMover
+  # Event iteration
+  - b3World_GetBodyEvents
+  - b3World_GetSensorEvents
+  - b3World_GetContactEvents
+  - b3World_GetJointEvents
+  # User data (need Variant boxing)
+  - b3Shape_SetUserData
+  - b3Shape_GetUserData
+  - b3World_SetUserData
+  - b3World_GetUserData
+  - b3Body_SetUserData
+  - b3Body_GetUserData
+  - b3Joint_SetUserData
+  - b3Joint_GetUserData
+  # Functions returning ID types (need RID lookup from b3 ID)
+  - b3Body_GetWorld
+  - b3Shape_GetBody
+  - b3Shape_GetWorld
+  - b3Joint_GetBodyA
+  - b3Joint_GetBodyB
+  - b3Joint_GetWorld
+  # Complex mover functions
+  - b3Body_CastShape
+  - b3Body_OverlapShape
+  - b3Body_CollideMover
+  # Single-element output pointers
+  - b3Joint_GetConstraintTuning
+  - b3DistanceJoint_GetSpringForceRange
+  - b3Body_GetClosestPoint
+  # INOUT array
+  - b3SolvePlanes
+  # Output scalar pointer (implemented as get_milliseconds_and_reset)
+  - b3GetMillisecondsAndReset
+  # Collision query with optional debug output (b3Simplex simplexes). We expose
+  # the distance + simplex cache and drop the debug simplex array (pass NULL/0).
+  - b3ShapeDistance
+  # Dual-output creation: returns b3MeshData* AND fills an out-array of
+  # degenerate triangle indices (implemented as a Dictionary).
+  - b3CreateMesh
+  # Pointer-array return (const b3SurfaceMaterial*, count on the compound) —
+  # implemented as a TypedArray.
+  - b3GetCompoundMaterials
+  # Serialization with ownership/lifetime semantics: convert_compound_to_bytes
+  # returns a copy of the blob (scrubbing tree.nodes in a scratch copy so the
+  # source compound stays usable), convert_bytes_to_compound copies the input
+  # into an owned buffer that the compound wrapper frees.
+  - b3ConvertCompoundToBytes
+  - b3ConvertBytesToCompound
+  # Const blob pointer return with no clone function — the shape aliases the
+  # caller's blob (not owns it), so we return an owned deep copy (the blob is
+  # self-contained at byteCount) that survives the shape being destroyed.
+  - b3Shape_GetHeightField
+
+# Array params: overrides for auto-detected array parameters.
+# Most functions are auto-detected. Only entries needing overrides are listed here.
+array_params:
+  b3Body_GetContactData:
+    contactData:
+      count_function: b3Body_GetContactCapacity
+  b3Shape_GetContactData:
+    contactData:
+      count_function: b3Shape_GetContactCapacity
+  b3Shape_GetSensorData:
+    visitorIds:
+      count_function: b3Shape_GetSensorCapacity
+  # Collision primitives - output struct with internal array
+  b3CollideSpheres:
+    manifold:
+      direction: output
+      count_param: capacity
+      output_struct:
+        type: b3LocalManifold
+        array_field: points
+        count_field: pointCount
+        return_element: Box3DLocalManifoldPoint
+        default_capacity: 4
+  b3CollideCapsules:
+    manifold:
+      direction: output
+      count_param: capacity
+      output_struct:
+        type: b3LocalManifold
+        array_field: points
+        count_field: pointCount
+        return_element: Box3DLocalManifoldPoint
+        default_capacity: 4
+  b3CollideHulls:
+    manifold:
+      direction: output
+      count_param: capacity
+      output_struct:
+        type: b3LocalManifold
+        array_field: points
+        count_field: pointCount
+        return_element: Box3DLocalManifoldPoint
+        default_capacity: 4
+  b3CollideTriangleAndSphere:
+    manifold:
+      direction: output
+      count_param: capacity
+      output_struct:
+        type: b3LocalManifold
+        array_field: points
+        count_field: pointCount
+        return_element: Box3DLocalManifoldPoint
+        default_capacity: 4
+    triangleA:
+      direction: input
+      fixed_count: 3
+  b3CollideTriangleAndCapsule:
+    manifold:
+      direction: output
+      count_param: capacity
+      output_struct:
+        type: b3LocalManifold
+        array_field: points
+        count_field: pointCount
+        return_element: Box3DLocalManifoldPoint
+        default_capacity: 4
+    triangleA:
+      direction: input
+      fixed_count: 3
+  b3CollideTriangleAndHull:
+    manifold:
+      direction: output
+      count_param: capacity
+      output_struct:
+        type: b3LocalManifold
+        array_field: points
+        count_field: pointCount
+        return_element: Box3DLocalManifoldPoint
+        default_capacity: 4
+  b3CollideHullAndSphere:
+    manifold:
+      direction: output
+      count_param: capacity
+      output_struct:
+        type: b3LocalManifold
+        array_field: points
+        count_field: pointCount
+        return_element: Box3DLocalManifoldPoint
+        default_capacity: 4
+  b3CollideHullAndCapsule:
+    manifold:
+      direction: output
+      count_param: capacity
+      output_struct:
+        type: b3LocalManifold
+        array_field: points
+        count_field: pointCount
+        return_element: Box3DLocalManifoldPoint
+        default_capacity: 4
+  b3CollideCapsuleAndSphere:
+    manifold:
+      direction: output
+      count_param: capacity
+      output_struct:
+        type: b3LocalManifold
+        array_field: points
+        count_field: pointCount
+        return_element: Box3DLocalManifoldPoint
+        default_capacity: 4
+
+# Pointer-array pair struct fields: C fields shaped as (Type* arr, int count)
+# that should be exposed as a single Godot Packed*Array property instead of
+# skipped. The generated data class owns deep storage for the pointed-to
+# elements; the count field is consumed (derived from the array's size).
+pointer_array_fields:
+  b3ShapeProxy:
+    points:
+      count_field: count
+  b3MeshDef:
+    vertices:
+      count_field: vertexCount
+    indices:
+      count_field: triangleCount
+    materialIndices:
+      count_field: triangleCount
+
+# Skip list: structs that shouldn't have data class generation.
+# Collision query types (clean) are now generated as data classes.
+# Types with pointer fields, opaque handles, or complex arrays remain skipped.
+skip_structs:
+  # Opaque handles
+  - b3DynamicTree
+  - b3Recording
+  - b3RecPlayer
+  # Collision internals with complex array patterns
+  - b3Simplex
+  - b3Manifold
+  # Debug/rendering
+  - b3DebugShape
+  - b3DebugDraw
+  # Event iteration (pointer fields)
+  - b3BodyEvents
+  - b3SensorEvents
+  - b3ContactEvents
+  - b3JointEvents
+  - b3BodyMoveEvent
+  - b3SensorBeginTouchEvent
+  - b3SensorEndTouchEvent
+  - b3ContactBeginTouchEvent
+  - b3ContactEndTouchEvent
+  - b3ContactHitEvent
+  - b3JointEvent
+  - b3BodyPlaneResult
+  # Dynamic tree internals
+  - b3TreeNode
+  # Recording internals
+  - b3RecQueryInfo
+  - b3RecQueryHit
+
+# Domain classification — which domain each function is grouped under for the
+# audit report, generated file naming (box3d_api_{domain}.gen.cpp), and docs
+# grouping. Rules are matched top-to-bottom; the first match wins. Specific
+# exceptions are listed FIRST (they'd be shadowed by the broad common pattern
+# below). Anything unmatched falls into "other".
+domain_rules:
+  # --- exceptions (specific functions/families that deviate) ---
+  - [world, "^b3(GetWorldCount|GetMaxWorldCount)$"]
+  - [recording, "^b3(SaveRecordingToFile|LoadRecordingFromFile|ValidateReplay)$"]
+  - [global, "^b3(GetVersion|GetByteCount|GetTicks|GetMilliseconds\\w*|GetLengthUnitsPerMeter|GetStallThreshold)$"]
+  - [global, "^b3(Atan2|Steiner|LineDistance|PointToSegmentDistance|SegmentDistance|Hash|InternalAssert|Sleep|Yield)$"]
+  - [collision, "^b3GetCompound\\w+$"]
+  - [collision, "^b3(GetHeight|GetGraphColor|GetSweepTransform|ScaleBox|ClipVector|SolvePlanes|ShapeDistance|TimeOfImpact|LoadHeightField|DumpHeightData)$"]
+  - [collision, "^b3(ConvertBytesToCompound|ConvertCompoundToBytes)$"]
+  # --- common naming pattern (b3<Subject>_ methods, lifecycle/query families) ---
+  - [body, "^b3Body_"]
+  - [shape, "^b3Shape_"]
+  - [world, "^b3World_"]
+  - [contact, "^b3Contact_"]
+  - [collision, "^b3DynamicTree_"]
+  - [recording, "^b3(Recording|RecPlayer)_"]
+  - [joint, "^b3\\w*Joint_"]
+  - [shape, "^b3(Create|Destroy)\\w*Shape$"]
+  - [joint, "^b3(Create|Destroy)\\w*Joint$"]
+  - [world, "^b3(Create|Destroy)World$"]
+  - [body, "^b3(Create|Destroy)Body$"]
+  - [recording, "^b3(Create|Destroy)\\w*Recording$"]
+  - [collision, "^b3(Create|Destroy)\\w+"]
+  - [collision, "^b3(Overlap|RayCast|ShapeCast|Collide|Compute|Query|Clone|Make)\\w*"]
+  - [global, "^b3Default\\w+"]
+  - [global, "^b3Is\\w+"]
+  - [global, "^b3Set\\w+"]
+
+# Extra headers included in each generated box3d_api_{domain}.gen.cpp file.
+# Paths are relative to src/api/bindings/ and only listed for domains whose
+# generated stubs call helpers declared elsewhere (e.g. RID-owner lookups).
+domain_headers:
+  body:
+    - "../../objects/box3d_body_impl_3d.hpp"
+  shape:
+    - "../../shapes/box3d_shape_instance_3d.hpp"
+    - "../../objects/box3d_body_impl_3d.hpp"
+  joint:
+    - "../../joints/box3d_joint_impl_3d.hpp"
+    - "../../objects/box3d_body_impl_3d.hpp"
+  world:
+    - "../../spaces/box3d_space_3d.hpp"

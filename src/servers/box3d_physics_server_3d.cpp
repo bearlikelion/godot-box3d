@@ -36,7 +36,7 @@ Box3DPhysicsServer3D::~Box3DPhysicsServer3D() {
 	}
 }
 
-Box3DShapedObjectImpl3D* Box3DPhysicsServer3D::_get_shaped_object(const RID& p_rid) const {
+Box3DShapedObjectImpl3D* Box3DPhysicsServer3D::get_shaped_object(const RID& p_rid) const {
 	if (Box3DBodyImpl3D* body = body_owner.get_or_null(p_rid)) {
 		return body;
 	}
@@ -180,16 +180,22 @@ double Box3DPhysicsServer3D::_shape_get_custom_solver_bias(const RID& p_shape) c
 // --- Space ---
 
 RID Box3DPhysicsServer3D::_space_create() {
+	return space_create(true);
+}
+
+RID Box3DPhysicsServer3D::space_create(bool p_with_default_area) {
 	auto* space = memnew(Box3DSpace3D);
 	const RID rid = space_owner.make_rid(space);
 	space->set_rid(rid);
 
-	const RID default_area_rid = _area_create();
-	Box3DAreaImpl3D* default_area = area_owner.get_or_null(default_area_rid);
-	ERR_FAIL_NULL_V(default_area, rid);
-	default_area->set_default_area(true);
-	default_area->set_space(space);
-	space->set_default_area(default_area);
+	if (p_with_default_area) {
+		const RID default_area_rid = _area_create();
+		Box3DAreaImpl3D* default_area = area_owner.get_or_null(default_area_rid);
+		ERR_FAIL_NULL_V(default_area, rid);
+		default_area->set_default_area(true);
+		default_area->set_space(space);
+		space->set_default_area(default_area);
+	}
 
 	return rid;
 }

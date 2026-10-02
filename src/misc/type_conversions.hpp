@@ -87,3 +87,29 @@ _FORCE_INLINE_ b3QueryFilter godot_to_b3_query_filter(uint32_t p_collision_mask)
 _FORCE_INLINE_ Plane b3_to_godot(const b3Plane& p_plane) {
 	return Plane(b3_to_godot(p_plane.normal), p_plane.offset);
 }
+
+_FORCE_INLINE_ b3Plane godot_to_b3(const Plane& p_plane) {
+	b3Plane plane;
+	plane.normal = godot_to_b3(p_plane.normal);
+	plane.offset = p_plane.d;
+	return plane;
+}
+
+_FORCE_INLINE_ Basis b3_to_godot(const b3Matrix3& p_m) {
+	// b3Matrix3 stores columns (cx, cy, cz), Godot Basis stores rows.
+	// Transpose during conversion.
+	Basis basis;
+	basis.rows[0] = Vector3(p_m.cx.x, p_m.cy.x, p_m.cz.x);
+	basis.rows[1] = Vector3(p_m.cx.y, p_m.cy.y, p_m.cz.y);
+	basis.rows[2] = Vector3(p_m.cx.z, p_m.cy.z, p_m.cz.z);
+	return basis;
+}
+
+_FORCE_INLINE_ b3Matrix3 godot_to_b3(const Basis& p_b) {
+	// Transpose: Godot Basis rows → b3Matrix3 columns
+	b3Matrix3 m;
+	m.cx = b3Vec3{p_b.rows[0].x, p_b.rows[1].x, p_b.rows[2].x};
+	m.cy = b3Vec3{p_b.rows[0].y, p_b.rows[1].y, p_b.rows[2].y};
+	m.cz = b3Vec3{p_b.rows[0].z, p_b.rows[1].z, p_b.rows[2].z};
+	return m;
+}

@@ -6,6 +6,9 @@
 #include <godot_cpp/variant/callable.hpp>
 #include <godot_cpp/variant/rid.hpp>
 #include <godot_cpp/variant/transform3d.hpp>
+#include <godot_cpp/variant/variant.hpp>
+
+#include "../api/box3d_api_callback.hpp"
 
 #include <box3d/id.h>
 
@@ -50,6 +53,18 @@ public:
 	float get_last_step() const { return last_step; }
 
 	bool is_flushing_queries() const { return flushing_queries; }
+
+	void set_custom_filter_callback(const Callable& p_callback);
+
+	Callable get_custom_filter_callback() const { return custom_filter_callback; }
+
+	void set_pre_solve_callback(const Callable& p_callback);
+
+	Callable get_pre_solve_callback() const { return pre_solve_callback; }
+
+	void set_user_data(const Variant& p_data) { user_data = p_data; }
+
+	Variant get_user_data() const { return user_data; }
 
 	void register_body(Box3DBodyImpl3D* p_body) { bodies.insert(p_body); }
 
@@ -114,4 +129,8 @@ private:
 	float last_step = 0.0f;
 	bool active = false;
 	bool flushing_queries = false;
+
+	Callable custom_filter_callback;
+	Callable pre_solve_callback;
+	Variant user_data;
 };

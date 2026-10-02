@@ -5,3 +5,9 @@ test_project/.godot/
 /test_project/Build
 /build-win
 /benchmark-video
+.cache/
+__pycache__/
+src/api/bindings/
+doc_classes/
+.DS_Store
+.venv/

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <godot_cpp/variant/transform3d.hpp>
+#include <godot_cpp/variant/variant.hpp>
 
 #include <box3d/id.h>
 
@@ -46,6 +47,10 @@ public:
 
 	void set_index(uint32_t p_index) { index = p_index; }
 
+	void set_user_data(const Variant& p_data) { user_data = p_data; }
+
+	Variant get_user_data() const { return user_data; }
+	
 	// Set when a trimesh instance needs its local transform baked into its own mesh copy.
 	b3MeshData* get_owned_mesh() const { return owned_mesh; }
 
@@ -58,4 +63,5 @@ private:
 	b3MeshData* owned_mesh = nullptr;
 	uint32_t index = 0;
 	bool disabled = false;
+	Variant user_data;
 };

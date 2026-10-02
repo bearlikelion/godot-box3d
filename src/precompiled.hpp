@@ -13,6 +13,7 @@
 #include <godot_cpp/templates/hash_set.hpp>
 #include <godot_cpp/templates/local_vector.hpp>
 #include <godot_cpp/variant/rid.hpp>
+#include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
 // Box3D (headers already provide their own extern "C" guards for C++ consumers)
