@@ -258,6 +258,7 @@ b3AABB exact_shape_aabb(b3ShapeId p_shape_id) {
 
 struct RecoveryContext {
 	const Box3DQueryFilter3D* filter = nullptr;
+	bool dynamic_bodies = false;
 	b3AABB query_aabb{};
 	Vector3 preferred_motion;
 	Vector3* accumulated_push = nullptr;
@@ -271,6 +272,10 @@ bool recovery_result_fcn(b3ShapeId p_shape_id, void* p_context) {
 	const b3BodyId body_id = b3Shape_GetBody(p_shape_id);
 	Box3DShapedObjectImpl3D* object = nullptr;
 	if (!should_report(b3Body_GetUserData(body_id), *ctx->filter, object)) {
+		return true;
+	}
+
+	if ((b3Body_GetType(body_id) == b3_dynamicBody) != ctx->dynamic_bodies) {
 		return true;
 	}
 
@@ -643,47 +648,56 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 	bool found_supported_shape = false;
 	bool recovered = false;
 
-	// CharacterBody3D starts each frame slightly embedded in the floor, so recover before casting.
+	// Resolve dynamic overlaps first, then immovable geometry. Applying opposing floor
+	// and rigid-body pushes together makes a resting load drive a character through the
+	// floor; ending each attempt with static/kinematic recovery preserves that boundary.
 	for (int32_t attempt = 0; attempt < 4; attempt++) {
-		Vector3 accumulated_push;
-		int32_t push_count = 0;
+		bool pushed = false;
+		for (int32_t pass = 0; pass < 2; pass++) {
+			Vector3 accumulated_push;
+			int32_t push_count = 0;
 
-		for (int32_t i = 0; i < p_body.get_shape_count(); i++) {
-			if (p_body.is_shape_disabled(i)) {
-				continue;
-			}
-			Box3DShapeImpl3D* shape = p_body.get_shape(i);
-			if (shape == nullptr) {
-				continue;
-			}
-			const Box3DShapeProxy3D shape_proxy(shape, recovered_transform * p_body.get_shape_transform(i), margin);
-			if (!shape_proxy.is_supported()) {
-				continue;
-			}
-			found_supported_shape = true;
+			for (int32_t i = 0; i < p_body.get_shape_count(); i++) {
+				if (p_body.is_shape_disabled(i)) {
+					continue;
+				}
+				Box3DShapeImpl3D* shape = p_body.get_shape(i);
+				if (shape == nullptr) {
+					continue;
+				}
+				const Box3DShapeProxy3D shape_proxy(shape, recovered_transform * p_body.get_shape_transform(i), margin);
+				if (!shape_proxy.is_supported()) {
+					continue;
+				}
+				found_supported_shape = true;
 
-			RecoveryContext context;
-			context.filter = &filter;
-			context.query_aabb = proxy_aabb(shape_proxy.get_proxy());
-			context.preferred_motion = p_motion;
-			context.accumulated_push = &accumulated_push;
-			context.push_count = &push_count;
-			context.local_shape = i;
-			context.collisions = &recovery_collisions;
-			b3World_OverlapShape(
-					space->get_world_id(),
-					b3Vec3_zero,
-					&shape_proxy.get_proxy(),
-					filter.filter,
-					recovery_result_fcn,
-					&context);
+				RecoveryContext context;
+				context.filter = &filter;
+				context.dynamic_bodies = pass == 0;
+				context.query_aabb = proxy_aabb(shape_proxy.get_proxy());
+				context.preferred_motion = p_motion;
+				context.accumulated_push = &accumulated_push;
+				context.push_count = &push_count;
+				context.local_shape = i;
+				context.collisions = &recovery_collisions;
+				b3World_OverlapShape(
+						space->get_world_id(),
+						b3Vec3_zero,
+						&shape_proxy.get_proxy(),
+						filter.filter,
+						recovery_result_fcn,
+						&context);
+			}
+
+			if (push_count > 0 && accumulated_push.length_squared() > CMP_EPSILON) {
+				recovered_transform.origin += accumulated_push;
+				recovered = true;
+				pushed = true;
+			}
 		}
-
-		if (push_count == 0 || accumulated_push.length_squared() <= CMP_EPSILON) {
+		if (!pushed) {
 			break;
 		}
-		recovered_transform.origin += accumulated_push;
-		recovered = true;
 	}
 
 	bool found_collision = false;
