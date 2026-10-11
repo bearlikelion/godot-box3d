@@ -3,6 +3,7 @@
 #include "../misc/type_conversions.hpp"
 
 #include <godot_cpp/classes/physics_direct_space_state3d_extension.hpp>
+#include <godot_cpp/classes/physics_server3d_extension.hpp>
 #include <godot_cpp/templates/hash_set.hpp>
 #include <godot_cpp/variant/rid.hpp>
 
@@ -18,6 +19,7 @@ struct Box3DQueryFilter3D {
 	b3QueryFilter filter = godot_to_b3_query_filter(UINT32_MAX);
 	HashSet<RID> exclude;
 	const PhysicsDirectSpaceState3DExtension* direct_state = nullptr;
+	const PhysicsServer3DExtension* motion_server = nullptr;
 	bool collide_with_bodies = true;
 	bool collide_with_areas = false;
 
@@ -30,7 +32,9 @@ struct Box3DQueryFilter3D {
 
 	void set_collision_mask(uint32_t p_collision_mask) { filter = godot_to_b3_query_filter(p_collision_mask); }
 
-	bool should_exclude(const RID& p_rid) const {
-		return exclude.has(p_rid) || (direct_state != nullptr && direct_state->is_body_excluded_from_query(p_rid));
+	bool should_exclude(const RID& p_rid, uint64_t p_object_id = 0) const {
+		return exclude.has(p_rid) || (direct_state != nullptr && direct_state->is_body_excluded_from_query(p_rid)) ||
+				(motion_server != nullptr && (motion_server->body_test_motion_is_excluding_body(p_rid) ||
+						motion_server->body_test_motion_is_excluding_object(p_object_id)));
 	}
 };

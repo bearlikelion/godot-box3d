@@ -42,6 +42,10 @@ public:
 
 	BodyMode get_mode() const { return mode; }
 
+	real_t get_collision_priority() const { return collision_priority; }
+
+	void set_collision_priority(real_t p_priority) { collision_priority = p_priority; }
+
 	void set_mode(BodyMode p_mode);
 
 	// Godot semantics: mass is always the explicitly set value (default 1.0), never
@@ -194,6 +198,8 @@ private:
 	void _refresh_mass_data();
 
 	BodyMode mode = PhysicsServer3D::BODY_MODE_RIGID;
+
+	real_t collision_priority = 1.0;
 
 	real_t mass = 1.0;
 	Vector3 inertia;

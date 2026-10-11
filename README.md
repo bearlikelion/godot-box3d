@@ -67,6 +67,9 @@ Use this if you have an existing project or want stock nodes and addons to work.
 
 ## Behavior differences
 
+Character overlap recovery and its validation are described in
+[Character motion recovery](docs/character-motion.md).
+
 - **`Area3D` does not detect trimesh or heightmap bodies.** In Box3D a concave shape (`ConcavePolygonShape3D`) or `HeightMapShape3D` can never act as a sensor *visitor*, by design, since testing an arbitrary mesh against a sensor is too expensive.
   So an `Area3D` silently ignores a body whose shape is a trimesh or heightmap: no `body_entered` / `body_exited` fires for it.
   This diverges from Godot's built-in physics (and Jolt), which report such a body on the first physics frame.
