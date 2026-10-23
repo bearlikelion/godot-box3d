@@ -1,6 +1,7 @@
 #include "box3d_physics_direct_space_state_3d.hpp"
 
 #include "../misc/box3d_shape_proxy.hpp"
+#include "../misc/box3d_recovery_geometry.hpp"
 #include "../misc/type_conversions.hpp"
 #include "../objects/box3d_area_impl_3d.hpp"
 #include "../objects/box3d_body_impl_3d.hpp"
@@ -35,7 +36,7 @@ bool should_report(void* p_user_data, const Box3DQueryFilter3D& p_filter, Box3DS
 	if (!is_area && !p_filter.collide_with_bodies) {
 		return false;
 	}
-	if (p_filter.should_exclude(object->get_rid())) {
+	if (p_filter.should_exclude(object->get_rid(), object->get_instance_id())) {
 		return false;
 	}
 	r_object = object;
@@ -158,7 +159,8 @@ void append_motion_collision(LocalVector<MotionCollisionData>& r_collisions, con
 	}
 	for (MotionCollisionData& existing : r_collisions) {
 		if (existing.object == p_collision.object && existing.local_shape == p_collision.local_shape &&
-				existing.collider_shape == p_collision.collider_shape) {
+				existing.collider_shape == p_collision.collider_shape &&
+				existing.normal.dot(p_collision.normal) > 0.99) {
 			if (p_collision.depth > existing.depth || p_collision.fraction < existing.fraction) {
 				existing = p_collision;
 			}
@@ -224,104 +226,93 @@ float motion_cast_result_fcn(
 	return p_fraction;
 }
 
-b3AABB proxy_aabb(const b3ShapeProxy& p_proxy) {
-	if (p_proxy.points == nullptr || p_proxy.count <= 0) {
-		return b3AABB{b3Vec3_zero, b3Vec3_zero};
-	}
-	b3Vec3 lower = p_proxy.points[0];
-	b3Vec3 upper = p_proxy.points[0];
-	for (int32_t i = 1; i < p_proxy.count; i++) {
-		lower = b3Min(lower, p_proxy.points[i]);
-		upper = b3Max(upper, p_proxy.points[i]);
-	}
-	const b3Vec3 radius{p_proxy.radius, p_proxy.radius, p_proxy.radius};
-	return b3AABB{b3Sub(lower, radius), b3Add(upper, radius)};
-}
-
-// Strip Box3D's speculative AABB inflation so recovery does not make characters hover.
-b3AABB exact_shape_aabb(b3ShapeId p_shape_id) {
-	b3AABB aabb = b3Shape_GetAABB(p_shape_id);
-	const b3Vec3 inflation{B3_SPECULATIVE_DISTANCE, B3_SPECULATIVE_DISTANCE, B3_SPECULATIVE_DISTANCE};
-	aabb.lowerBound = b3Add(aabb.lowerBound, inflation);
-	aabb.upperBound = b3Sub(aabb.upperBound, inflation);
-	return aabb;
-}
+struct RecoveryPlane {
+	b3CollisionPlane plane{};
+	real_t priority = 1.0;
+	bool immovable = true;
+};
 
 struct RecoveryContext {
 	const Box3DQueryFilter3D* filter = nullptr;
-	b3AABB query_aabb{};
-	Vector3 preferred_motion;
-	Vector3* accumulated_push = nullptr;
-	int32_t* push_count = nullptr;
+	b3ShapeId query_shape = b3_nullShapeId;
+	b3Transform query_transform{};
+	float margin = 0.0f;
 	int32_t local_shape = -1;
+	LocalVector<RecoveryPlane>* planes = nullptr;
 	LocalVector<MotionCollisionData>* collisions = nullptr;
 };
 
+void append_recovery_plane(LocalVector<RecoveryPlane>& r_planes, const Vector3& p_normal,
+		real_t p_depth, const Box3DBodyImpl3D& p_body) {
+	const bool immovable = p_body.get_mode() == PhysicsServer3D::BODY_MODE_STATIC ||
+			p_body.get_mode() == PhysicsServer3D::BODY_MODE_KINEMATIC;
+	const real_t priority = p_body.get_collision_priority();
+	// Co-planar triangle/manifold points describe one translation constraint.
+	for (RecoveryPlane& existing : r_planes) {
+		if (existing.immovable == immovable && Math::is_equal_approx(existing.priority, priority) &&
+				b3Dot(existing.plane.plane.normal, godot_to_b3(p_normal)) > 0.9999f) {
+			existing.plane.plane.offset = MAX(existing.plane.plane.offset, (float)p_depth + B3_LINEAR_SLOP);
+			existing.plane.pushLimit = immovable ? FLT_MAX : MAX(existing.plane.pushLimit, (float)p_depth);
+			return;
+		}
+	}
+	RecoveryPlane entry;
+	entry.immovable = immovable;
+	entry.priority = priority;
+	entry.plane.plane = {godot_to_b3(p_normal), (float)p_depth + B3_LINEAR_SLOP};
+	// A movable obstacle may overlap when a character is trapped under a load.
+	// Bound its push rather than allowing it to accumulate against an immovable
+	// support forever. Queries never move or apply impulses to that obstacle.
+	entry.plane.pushLimit = immovable ? FLT_MAX : MAX(0.0f, (float)p_depth);
+	r_planes.push_back(entry);
+}
+
 bool recovery_result_fcn(b3ShapeId p_shape_id, void* p_context) {
 	auto* ctx = static_cast<RecoveryContext*>(p_context);
-	const b3BodyId body_id = b3Shape_GetBody(p_shape_id);
 	Box3DShapedObjectImpl3D* object = nullptr;
-	if (!should_report(b3Body_GetUserData(body_id), *ctx->filter, object)) {
+	if (!should_report(b3Body_GetUserData(b3Shape_GetBody(p_shape_id)), *ctx->filter, object)) {
 		return true;
 	}
-
-	const b3ShapeType target_type = b3Shape_GetType(p_shape_id);
-	if (target_type == b3_meshShape || target_type == b3_heightShape) {
+	auto* body = dynamic_cast<Box3DBodyImpl3D*>(object);
+	if (body == nullptr) {
 		return true;
 	}
-	const b3AABB target_aabb = exact_shape_aabb(p_shape_id);
-	const float depths[3] = {
-		MIN(ctx->query_aabb.upperBound.x, target_aabb.upperBound.x) -
-				MAX(ctx->query_aabb.lowerBound.x, target_aabb.lowerBound.x),
-		MIN(ctx->query_aabb.upperBound.y, target_aabb.upperBound.y) -
-				MAX(ctx->query_aabb.lowerBound.y, target_aabb.lowerBound.y),
-		MIN(ctx->query_aabb.upperBound.z, target_aabb.upperBound.z) -
-				MAX(ctx->query_aabb.lowerBound.z, target_aabb.lowerBound.z),
-	};
-	if (depths[0] <= CMP_EPSILON || depths[1] <= CMP_EPSILON || depths[2] <= CMP_EPSILON) {
-		return true;
+	LocalVector<Box3DRecoveryContact> contacts;
+	box3d_recovery_contacts(ctx->query_shape, ctx->query_transform, p_shape_id, ctx->margin, contacts);
+	for (const Box3DRecoveryContact& contact : contacts) {
+		const real_t depth = MAX(0.0f, ctx->margin - contact.separation);
+		const Vector3 normal = b3_to_godot(contact.normal).normalized();
+		append_recovery_plane(*ctx->planes, normal, depth, *body);
+		MotionCollisionData collision;
+		collision.object = object;
+		collision.position = b3_to_godot(contact.point);
+		collision.normal = normal;
+		collision.depth = depth;
+		collision.local_shape = ctx->local_shape;
+		collision.collider_shape = object->find_shape_index(p_shape_id);
+		append_motion_collision(*ctx->collisions, collision);
 	}
-
-	int32_t axis = 0;
-	if (depths[1] < depths[axis]) {
-		axis = 1;
-	}
-	if (depths[2] < depths[axis]) {
-		axis = 2;
-	}
-
-	const b3Vec3 query_center = b3MulSV(0.5f, b3Add(ctx->query_aabb.lowerBound, ctx->query_aabb.upperBound));
-	const b3Vec3 target_center = b3MulSV(0.5f, b3Add(target_aabb.lowerBound, target_aabb.upperBound));
-	const float query_axis = axis == 0 ? query_center.x : axis == 1 ? query_center.y : query_center.z;
-	const float target_axis = axis == 0 ? target_center.x : axis == 1 ? target_center.y : target_center.z;
-	const real_t motion_axis = ctx->preferred_motion[axis];
-	const float direction = Math::is_equal_approx(query_axis, target_axis) ?
-			(motion_axis > 0.0 ? -1.0f : 1.0f) :
-			(query_axis > target_axis ? 1.0f : -1.0f);
-
-	Vector3 normal;
-	normal[axis] = direction;
-	const real_t depth = depths[axis];
-	const Vector3 push = normal * (depth + B3_LINEAR_SLOP);
-	const real_t existing_push = (*ctx->accumulated_push)[axis];
-	const bool candidate_is_deeper = Math::abs(push[axis]) > Math::abs(existing_push);
-	const bool candidate_better_opposes_motion =
-			Math::is_equal_approx(Math::abs(push[axis]), Math::abs(existing_push)) &&
-			push[axis] * motion_axis < existing_push * motion_axis;
-	if (candidate_is_deeper || candidate_better_opposes_motion) {
-		(*ctx->accumulated_push)[axis] = push[axis];
-	}
-	(*ctx->push_count)++;
-
-	MotionCollisionData collision;
-	collision.object = object;
-	collision.position = b3_to_godot(b3Shape_GetClosestPoint(p_shape_id, query_center));
-	collision.normal = normal;
-	collision.depth = depth;
-	collision.local_shape = ctx->local_shape;
-	collision.collider_shape = object->find_shape_index(p_shape_id);
-	append_motion_collision(*ctx->collisions, collision);
 	return true;
+}
+
+Vector3 solve_recovery(LocalVector<RecoveryPlane>& p_planes) {
+	// Resolve movable contacts first; supporting static/kinematic surfaces have
+	// the final say. Within a class, higher Godot collision priorities win when
+	// no translation can satisfy all planes (for example a too-narrow passage).
+	for (uint32_t i = 1; i < p_planes.size(); i++) {
+		uint32_t j = i;
+		while (j > 0 && (p_planes[j - 1].immovable > p_planes[j].immovable ||
+				(p_planes[j - 1].immovable == p_planes[j].immovable &&
+						p_planes[j - 1].priority > p_planes[j].priority))) {
+			SWAP(p_planes[j - 1], p_planes[j]);
+			j--;
+		}
+	}
+	LocalVector<b3CollisionPlane> planes;
+	for (const RecoveryPlane& entry : p_planes) {
+		planes.push_back(entry.plane);
+	}
+	return b3_to_godot(b3SolvePlanes(b3Vec3_zero, planes.ptr(), (int)planes.size()).delta);
 }
 
 void fill_motion_collision(const MotionCollisionData& p_source, PhysicsServer3DExtensionMotionCollision& r_target) {
@@ -621,6 +612,7 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 
 	Box3DQueryFilter3D filter;
 	filter.set_collision_mask(p_body.get_collision_mask());
+	filter.motion_server = Box3DPhysicsServer3D::get_singleton();
 	filter.exclude.insert(p_body.get_rid());
 	if (auto* body = dynamic_cast<Box3DBodyImpl3D*>(&p_body)) {
 		for (const KeyValue<RID, Box3DFilterJointImpl3D*>& entry : body->get_collision_exceptions()) {
@@ -636,15 +628,14 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 
 	// CharacterBody3D starts each frame slightly embedded in the floor, so recover before casting.
 	for (int32_t attempt = 0; attempt < 4; attempt++) {
-		Vector3 accumulated_push;
-		int32_t push_count = 0;
+		LocalVector<RecoveryPlane> planes;
 
 		for (int32_t i = 0; i < p_body.get_shape_count(); i++) {
 			if (p_body.is_shape_disabled(i)) {
 				continue;
 			}
 			Box3DShapeImpl3D* shape = p_body.get_shape(i);
-			if (shape == nullptr) {
+			if (shape == nullptr || !p_body.has_shape_id(i)) {
 				continue;
 			}
 			const Box3DShapeProxy3D shape_proxy(shape, recovered_transform * p_body.get_shape_transform(i), margin);
@@ -655,10 +646,10 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 
 			RecoveryContext context;
 			context.filter = &filter;
-			context.query_aabb = proxy_aabb(shape_proxy.get_proxy());
-			context.preferred_motion = p_motion;
-			context.accumulated_push = &accumulated_push;
-			context.push_count = &push_count;
+			context.query_shape = p_body.get_shape_id(i);
+			context.query_transform = godot_to_b3_transform(recovered_transform);
+			context.margin = (float)margin;
+			context.planes = &planes;
 			context.local_shape = i;
 			context.collisions = &recovery_collisions;
 			b3World_OverlapShape(
@@ -670,7 +661,11 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 					&context);
 		}
 
-		if (push_count == 0 || accumulated_push.length_squared() <= CMP_EPSILON) {
+		if (planes.is_empty()) {
+			break;
+		}
+		const Vector3 accumulated_push = solve_recovery(planes);
+		if (!accumulated_push.is_finite() || accumulated_push.length_squared() <= 1e-10) {
 			break;
 		}
 		recovered_transform.origin += accumulated_push;

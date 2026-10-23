@@ -566,12 +566,16 @@ uint32_t Box3DPhysicsServer3D::_body_get_collision_mask(const RID& p_body) const
 }
 
 void Box3DPhysicsServer3D::_body_set_collision_priority(const RID& p_body, double p_priority) {
-	// No Box3D equivalent (collision priority affects only the built-in solver's
-	// impulse weighting, which Box3D does not expose).
+	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL(body);
+	ERR_FAIL_COND(!Math::is_finite(p_priority) || p_priority <= 0.0);
+	body->set_collision_priority(p_priority);
 }
 
 double Box3DPhysicsServer3D::_body_get_collision_priority(const RID& p_body) const {
-	return 1.0;
+	const Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL_V(body, 1.0);
+	return body->get_collision_priority();
 }
 
 void Box3DPhysicsServer3D::_body_set_user_flags(const RID& p_body, uint32_t p_flags) {
