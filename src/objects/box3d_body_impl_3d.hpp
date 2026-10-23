@@ -24,6 +24,8 @@ struct Box3DContactPoint3D {
 	Vector3 collider_velocity;
 	RID collider_rid;
 	uint64_t collider_instance_id = 0;
+	int32_t local_shape = -1;
+	int32_t collider_shape = -1;
 };
 
 // RigidBody-facing wrapper: static/kinematic/dynamic bodies. Box3D requires a valid world
@@ -33,6 +35,7 @@ struct Box3DContactPoint3D {
 class Box3DBodyImpl3D final : public Box3DShapedObjectImpl3D {
 public:
 	using BodyMode = PhysicsServer3D::BodyMode;
+	using BodyDampMode = PhysicsServer3D::BodyDampMode;
 
 	~Box3DBodyImpl3D() override;
 
@@ -70,6 +73,10 @@ public:
 
 	void set_linear_damping(real_t p_damping);
 
+	BodyDampMode get_linear_damp_mode() const { return linear_damp_mode; }
+
+	void set_linear_damp_mode(BodyDampMode p_mode) { linear_damp_mode = p_mode; }
+
 	real_t get_bounce() const { return bounce; }
 
 	void set_bounce(real_t p_bounce) { bounce = p_bounce; }
@@ -81,6 +88,10 @@ public:
 	real_t get_angular_damping() const { return angular_damping; }
 
 	void set_angular_damping(real_t p_damping);
+
+	BodyDampMode get_angular_damp_mode() const { return angular_damp_mode; }
+
+	void set_angular_damp_mode(BodyDampMode p_mode) { angular_damp_mode = p_mode; }
 
 	real_t get_gravity_scale() const { return gravity_scale; }
 
@@ -209,6 +220,8 @@ private:
 
 	real_t linear_damping = 0.0;
 	real_t angular_damping = 0.0;
+	BodyDampMode linear_damp_mode = PhysicsServer3D::BODY_DAMP_MODE_COMBINE;
+	BodyDampMode angular_damp_mode = PhysicsServer3D::BODY_DAMP_MODE_COMBINE;
 	real_t bounce = 0.0;
 	real_t friction = 1.0;
 	real_t gravity_scale = 1.0;

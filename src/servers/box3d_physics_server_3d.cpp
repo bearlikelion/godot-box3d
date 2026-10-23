@@ -609,9 +609,10 @@ void Box3DPhysicsServer3D::_body_set_param(const RID& p_body, PhysicsServer3D::B
 			body->set_gravity_scale(p_value);
 			break;
 		case PhysicsServer3D::BODY_PARAM_LINEAR_DAMP_MODE:
+			body->set_linear_damp_mode((PhysicsServer3D::BodyDampMode)(int)p_value);
+			break;
 		case PhysicsServer3D::BODY_PARAM_ANGULAR_DAMP_MODE:
-			// Box3D always applies damping as a simple replace mode; COMBINE mode has no
-			// direct equivalent and is treated the same as REPLACE.
+			body->set_angular_damp_mode((PhysicsServer3D::BodyDampMode)(int)p_value);
 			break;
 		case PhysicsServer3D::BODY_PARAM_LINEAR_DAMP:
 			body->set_linear_damping(p_value);
@@ -641,8 +642,9 @@ Variant Box3DPhysicsServer3D::_body_get_param(const RID& p_body, PhysicsServer3D
 		case PhysicsServer3D::BODY_PARAM_GRAVITY_SCALE:
 			return body->get_gravity_scale();
 		case PhysicsServer3D::BODY_PARAM_LINEAR_DAMP_MODE:
+			return body->get_linear_damp_mode();
 		case PhysicsServer3D::BODY_PARAM_ANGULAR_DAMP_MODE:
-			return PhysicsServer3D::BODY_DAMP_MODE_COMBINE;
+			return body->get_angular_damp_mode();
 		case PhysicsServer3D::BODY_PARAM_LINEAR_DAMP:
 			return body->get_linear_damping();
 		case PhysicsServer3D::BODY_PARAM_ANGULAR_DAMP:
@@ -943,12 +945,17 @@ void Box3DPhysicsServer3D::_joint_clear(const RID& p_joint) {
 }
 
 void Box3DPhysicsServer3D::_joint_make_pin(const RID& p_joint, const RID& p_body_a, const Vector3& p_local_a, const RID& p_body_b, const Vector3& p_local_b) {
+	ERR_FAIL_COND(!joint_owner.owns(p_joint));
 	_joint_clear(p_joint);
 
 	Box3DBodyImpl3D* body_a = body_owner.get_or_null(p_body_a);
 	Box3DBodyImpl3D* body_b = body_owner.get_or_null(p_body_b);
-	ERR_FAIL_NULL(body_a);
-	ERR_FAIL_NULL(body_b);
+	// PinJoint3D reconfigures itself as each NodePath property is assigned. During
+	// that normal setup sequence one body RID is temporarily empty, so retain the
+	// valid placeholder until both endpoints are available.
+	if (body_a == nullptr || body_b == nullptr) {
+		return;
+	}
 
 	auto* joint = memnew(Box3DPinJointImpl3D(body_a, body_b, Transform3D(Basis(), p_local_a), Transform3D(Basis(), p_local_b)));
 	joint->set_rid(p_joint);
@@ -957,7 +964,12 @@ void Box3DPhysicsServer3D::_joint_make_pin(const RID& p_joint, const RID& p_body
 }
 
 void Box3DPhysicsServer3D::_pin_joint_set_param(const RID& p_joint, PhysicsServer3D::PinJointParam p_param, double p_value) {
-	auto* joint = dynamic_cast<Box3DPinJointImpl3D*>(joint_owner.get_or_null(p_joint));
+	ERR_FAIL_COND(!joint_owner.owns(p_joint));
+	Box3DJointImpl3D* base_joint = joint_owner.get_or_null(p_joint);
+	if (base_joint == nullptr) {
+		return;
+	}
+	auto* joint = dynamic_cast<Box3DPinJointImpl3D*>(base_joint);
 	ERR_FAIL_NULL(joint);
 	joint->set_param(p_param, p_value);
 }
@@ -1143,8 +1155,11 @@ int32_t Box3DPhysicsServer3D::_joint_get_solver_priority(const RID& p_joint) con
 }
 
 void Box3DPhysicsServer3D::_joint_disable_collisions_between_bodies(const RID& p_joint, bool p_disable) {
+	ERR_FAIL_COND(!joint_owner.owns(p_joint));
 	Box3DJointImpl3D* joint = joint_owner.get_or_null(p_joint);
-	ERR_FAIL_NULL(joint);
+	if (joint == nullptr) {
+		return;
+	}
 	joint->set_collision_disabled(p_disable);
 }
 
