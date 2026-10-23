@@ -68,7 +68,7 @@ A deterministic drop test: 36 boxes every 0.5s onto a fixed lattice from a fixed
 
 The readout tracks FPS, physics step time, memory, and how many bodies were in the world when the step first exceeded the 16.66 ms budget for 60 FPS. The export button writes a screenshot and a per-frame CSV to `user://`.
 
-Results and caveats are in the [README](https://github.com/bearlikelion/godot-box3d#benchmarks).
+Results and caveats are on the [Benchmarks]({{ '/benchmarks/' | relative_url }}) page.
 
 ## Regenerating the screenshots
 

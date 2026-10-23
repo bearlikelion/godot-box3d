@@ -13,6 +13,7 @@ Stock Godot physics nodes keep working. You change a project setting, not your s
 
 - [Installation]({{ '/installation/' | relative_url }})
 - [Demos]({{ '/demos/' | relative_url }})
+- [Benchmarks]({{ '/benchmarks/' | relative_url }})
 - [Behavior differences]({{ '/behavior-differences/' | relative_url }})
 - [Comparison with box3d-godot]({{ '/comparison/' | relative_url }})
 - [Building from source]({{ '/building/' | relative_url }})
@@ -56,7 +57,7 @@ A 4096-box drop test, same scene and seed on every backend. Box3D held the 60 FP
 | Godot Physics | 1044 | 54.6 ms | 235.5 ms | 306.0 ms | 177 MB |
 | Rapier3D | 684 | 79.2 ms | 249.3 ms | 303.2 ms | 177 MB |
 
-One workload on one machine, and all four are past budget well before 4096 bodies, so this measures degradation under overload rather than comfortable capacity. The Box3D column predates the multithreaded solver and was measured with a single worker; threading improves its step time at high body counts by roughly 1.5x. See the [README](https://github.com/bearlikelion/godot-box3d#benchmarks) for the full caveats.
+One workload on one machine, and all four are past budget well before 4096 bodies, so this measures degradation under overload rather than comfortable capacity. The Box3D column predates the multithreaded solver and was measured with a single worker; threading improves its step time at high body counts by roughly 1.5x. See [Benchmarks]({{ '/benchmarks/' | relative_url }}) for the full caveats.
 
 ## License
 

@@ -1,6 +1,6 @@
 title: godot-box3d
 description: Box3D physics for Godot 4, as a drop-in PhysicsServer3D extension
-version: 0.2.0-dev
+version: 0.3.0
 
 # Styling follows box2d.org/documentation3d, so the two sets of docs feel related.
 # No remote theme: the layout in _layouts/default.html is self-contained.
@@ -23,6 +23,8 @@ nav:
     url: /installation/
   - title: Demos
     url: /demos/
+  - title: Benchmarks
+    url: /benchmarks/
   - title: Behavior differences
     url: /behavior-differences/
   - title: Comparison

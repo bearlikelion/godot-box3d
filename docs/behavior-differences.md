@@ -6,6 +6,8 @@ title: Behavior differences
 
 Places where Box3D behaves differently from Godot's built-in physics. These are design differences in the underlying engine, not bugs, and none of them are things a drop-in backend can paper over.
 
+How `CharacterBody3D` recovers from overlaps is covered separately in [Character motion recovery]({{ '/character-motion/' | relative_url }}).
+
 ## `Area3D` does not detect trimesh or heightmap bodies
 
 In Box3D a concave shape (`ConcavePolygonShape3D`) or `HeightMapShape3D` can never act as a sensor *visitor*, by design, since testing an arbitrary mesh against a sensor is too expensive.
