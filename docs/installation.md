@@ -32,6 +32,12 @@ The solver is multithreaded and defaults to one worker per physical core (effici
 To override it, set `physics/box3d/worker_count` (visible with Advanced Settings on) to an explicit count; `0` means auto.
 Worker count changes also need a restart, and simulation results are identical at any worker count.
 
+## Length units
+
+Box3D's internal tolerances (contact slop, speculative distance, AABB margins) assume one unit is one meter.
+If your game uses another scale, set `physics/box3d/length_units_per_meter` to the number of units in a meter, for example `100` for centimeters.
+This also needs a restart.
+
 ## Platform support
 
 | Platform | Status |
