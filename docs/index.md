@@ -31,6 +31,7 @@ Box3D is worth trying because of where it came from. [Erin Catto](https://x.com/
 - Direct space state queries: ray casts, point and shape intersection, shape casts (`cast_motion`), `collide_shape`, and `rest_info`
 - `body_test_motion`, so `CharacterBody3D` and `move_and_slide()` work
 - Contact monitoring, so `RigidBody3D` reports real contact points, normals, and impulses
+- Queries and contact results report per-shape indices for multi-shape bodies
 - Per-pair collision exceptions
 - Joints: pin, hinge, and slider (pin anchors can be moved after creation)
 - Multithreaded solver: auto-detects physical cores, overridable via `physics/box3d/worker_count`
@@ -41,7 +42,6 @@ Box3D is worth trying because of where it came from. [Erin Catto](https://x.com/
 - ConeTwist joints
 - `Generic6DOFJoint3D` (Box3D has no per-axis lock/limit/motor constraint, so there is no faithful mapping)
 - `SoftBody3D`
-- Per-shape indices in query and contact results (multi-shape bodies always report shape 0)
 - Solver profiling
 - macOS universal binaries and notarization
 
