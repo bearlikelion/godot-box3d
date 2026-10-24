@@ -173,6 +173,10 @@ void append_motion_collision(LocalVector<MotionCollisionData>& r_collisions, con
 struct MotionCastContext {
 	const Box3DQueryFilter3D* filter = nullptr;
 	LocalVector<MotionCollisionData>* collisions = nullptr;
+	b3ShapeId query_shape = b3_nullShapeId;
+	b3Transform query_transform{};
+	b3Vec3 motion{};
+	float margin = 0.0f;
 	bool has_hit = false;
 	Box3DShapedObjectImpl3D* object = nullptr;
 	b3Pos point{};
@@ -199,31 +203,43 @@ float motion_cast_result_fcn(
 		return -1.0f;
 	}
 
-	// Box3D reports a zero normal when the cast starts overlapped; recovery handles that case.
-	if (p_fraction <= CMP_EPSILON && b3LengthSquared(p_normal) < 0.25f) {
+	float fraction = p_fraction;
+	b3Vec3 normal = p_normal;
+	b3Pos point = p_point;
+	if (B3_IS_NON_NULL(ctx->query_shape)) {
+		// Box3D casts hit anything within linear slop, which snags coplanar seams; Godot hits on touch.
+		Box3DRecoveryContact contact{};
+		fraction = box3d_cast_to_contact(
+				ctx->query_shape, ctx->query_transform, ctx->motion, p_shape_id, ctx->margin, contact);
+		if (fraction < 0.0f) {
+			return -1.0f;
+		}
+		normal = contact.normal;
+		point = contact.point;
+	} else if (p_fraction <= CMP_EPSILON && b3LengthSquared(p_normal) < 0.25f) {
 		return -1.0f;
 	}
 
 	const int32_t collider_shape = object->find_shape_index(p_shape_id);
 	MotionCollisionData collision;
 	collision.object = object;
-	collision.position = b3_to_godot(p_point);
-	collision.normal = b3_to_godot(p_normal);
-	collision.fraction = p_fraction;
+	collision.position = b3_to_godot(point);
+	collision.normal = b3_to_godot(normal);
+	collision.fraction = fraction;
 	collision.local_shape = ctx->local_shape;
 	collision.collider_shape = collider_shape;
 	append_motion_collision(*ctx->collisions, collision);
 
-	if (ctx->has_hit && p_fraction >= ctx->fraction) {
+	if (ctx->has_hit && fraction >= ctx->fraction) {
 		return ctx->fraction;
 	}
 	ctx->has_hit = true;
 	ctx->object = object;
-	ctx->point = p_point;
-	ctx->normal = p_normal;
-	ctx->fraction = p_fraction;
+	ctx->point = point;
+	ctx->normal = normal;
+	ctx->fraction = fraction;
 	ctx->collider_shape = collider_shape;
-	return p_fraction;
+	return fraction;
 }
 
 struct RecoveryPlane {
@@ -697,6 +713,10 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 		MotionCastContext context;
 		context.filter = &filter;
 		context.collisions = &cast_collisions;
+		context.query_shape = p_body.get_shape_id(i);
+		context.query_transform = godot_to_b3_transform(recovered_transform);
+		context.motion = godot_to_b3(p_motion);
+		context.margin = (float)margin;
 		context.local_shape = i;
 		b3World_CastShape(
 				space->get_world_id(),

@@ -15,3 +15,7 @@ struct Box3DRecoveryContact {
 // Supply the hypothetical query body transform without changing the live body.
 void box3d_recovery_contacts(b3ShapeId p_query, b3Transform p_query_transform,
 		b3ShapeId p_target, float p_margin, godot::LocalVector<Box3DRecoveryContact>& r_contacts);
+
+// Fraction where the gap reaches p_margin on a motion that touches the target, or -1 if it never touches.
+float box3d_cast_to_contact(b3ShapeId p_query, b3Transform p_query_transform, b3Vec3 p_motion,
+		b3ShapeId p_target, float p_margin, Box3DRecoveryContact& r_contact);

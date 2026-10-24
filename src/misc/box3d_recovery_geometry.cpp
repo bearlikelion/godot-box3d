@@ -112,7 +112,106 @@ bool triangle_contact(b3Vec3 p_a, b3Vec3 p_b, b3Vec3 p_c, int p_index, void* p_c
 	return true;
 }
 
+struct NearContact {
+	float fraction = -1.0f;
+	b3Vec3 normal{};
+	b3Vec3 point{};
+};
+
+// Conservative advancement: only a touch within the motion is a hit, reported where the gap reaches the margin.
+void advance_to_contact(b3ShapeProxy p_target, b3ShapeProxy p_query, b3Transform p_query_to_target,
+		b3Vec3 p_motion, float p_margin, NearContact& r_best) {
+	b3DistanceInput input{};
+	input.proxyA = p_target;
+	input.proxyB = p_query;
+	input.transform = p_query_to_target;
+	input.useRadii = true;
+	b3SimplexCache cache{};
+	const float touch = 0.25f * p_margin;
+	float fraction = 0.0f;
+	float margin_fraction = -1.0f;
+	for (int i = 0; i < 20 && fraction <= 1.0f; i++) {
+		input.transform.p = b3MulAdd(p_query_to_target.p, fraction, p_motion);
+		const b3DistanceOutput output = b3ShapeDistance(&input, &cache, nullptr, 0);
+		const float closing = -b3Dot(output.normal, p_motion);
+		if (output.distance <= 0.0f || closing <= FLT_EPSILON) {
+			return;
+		}
+		if (margin_fraction < 0.0f && output.distance <= 1.25f * p_margin) {
+			margin_fraction = fraction;
+		}
+		if (output.distance <= touch) {
+			// Godot drops sub-margin recovery, so travel past the margin from a recovered start would sink.
+			if (r_best.fraction < 0.0f || margin_fraction < r_best.fraction) {
+				r_best = {margin_fraction, output.normal, output.pointA};
+			}
+			return;
+		}
+		fraction += (output.distance - (margin_fraction < 0.0f ? p_margin : 0.5f * touch)) / closing;
+	}
+}
+
+struct NearTriangleContext {
+	b3ShapeProxy query;
+	b3Transform query_to_target;
+	b3Vec3 motion;
+	float margin;
+	NearContact* best;
+};
+
+bool near_triangle(b3Vec3 p_a, b3Vec3 p_b, b3Vec3 p_c, int, void* p_context) {
+	auto& ctx = *static_cast<NearTriangleContext*>(p_context);
+	const b3Vec3 triangle[] = {p_a, p_b, p_c};
+	const b3Vec3 face_normal = b3Cross(b3Sub(p_b, p_a), b3Sub(p_c, p_a));
+	if (b3Dot(face_normal, b3Sub(b3TransformPoint(ctx.query_to_target, ctx.query.points[0]), p_a)) >= 0.0f) {
+		advance_to_contact({triangle, 3, 0.0f}, ctx.query, ctx.query_to_target, ctx.motion, ctx.margin, *ctx.best);
+	}
+	return true;
+}
+
 } // namespace
+
+float box3d_cast_to_contact(b3ShapeId p_query, b3Transform p_query_transform, b3Vec3 p_motion,
+		b3ShapeId p_target, float p_margin, Box3DRecoveryContact& r_contact) {
+	const Geometry query(p_query);
+	const Geometry target(p_target);
+	const b3ShapeProxy query_proxy = query.proxy();
+	if (query_proxy.count == 0) {
+		return -1.0f;
+	}
+	const b3Transform target_transform = b3Body_GetTransform(b3Shape_GetBody(p_target));
+	const b3Transform query_to_target = b3InvMulTransforms(target_transform, p_query_transform);
+	const b3Vec3 motion = b3InvRotateVector(target_transform.q, p_motion);
+	NearContact best;
+	if (target.type == b3_meshShape || target.type == b3_heightShape) {
+		b3Vec3 lower = b3TransformPoint(query_to_target, query_proxy.points[0]);
+		b3Vec3 upper = lower;
+		for (int i = 1; i < query_proxy.count; i++) {
+			const b3Vec3 point = b3TransformPoint(query_to_target, query_proxy.points[i]);
+			lower = b3Min(lower, point);
+			upper = b3Max(upper, point);
+		}
+		lower = b3Min(lower, b3Add(lower, motion));
+		upper = b3Max(upper, b3Add(upper, motion));
+		const float radius = query_proxy.radius + p_margin;
+		const b3Vec3 inflation{radius, radius, radius};
+		const b3AABB bounds{b3Sub(lower, inflation), b3Add(upper, inflation)};
+		NearTriangleContext ctx{query_proxy, query_to_target, motion, p_margin, &best};
+		if (target.type == b3_meshShape) {
+			const b3Mesh mesh = b3Shape_GetMesh(p_target);
+			b3QueryMesh(&mesh, bounds, near_triangle, &ctx);
+		} else {
+			b3QueryHeightField(b3Shape_GetHeightField(p_target), bounds, near_triangle, &ctx);
+		}
+	} else if (target.proxy().count > 0) {
+		advance_to_contact(target.proxy(), query_proxy, query_to_target, motion, p_margin, best);
+	}
+	if (best.fraction < 0.0f) {
+		return -1.0f;
+	}
+	r_contact = {b3TransformPoint(target_transform, best.point), b3RotateVector(target_transform.q, best.normal), 0.0f};
+	return best.fraction;
+}
 
 void box3d_recovery_contacts(b3ShapeId p_query, b3Transform p_query_transform,
 		b3ShapeId p_target, float p_margin, godot::LocalVector<Box3DRecoveryContact>& r_contacts) {

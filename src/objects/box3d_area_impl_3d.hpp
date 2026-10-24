@@ -85,15 +85,15 @@ public:
 
 	Vector3 compute_gravity(const Vector3& p_position) const;
 
-	// Refcounted per overlapping Box3DShapedObjectImpl3D (a body/area may touch this area
+	// Refcounted per overlapping object RID (a body/area may touch this area
 	// via multiple shape pairs; Godot signals entered/exited once per body, not per pair).
 	// Returns true the first time this object starts overlapping (i.e. entered).
-	bool add_overlap(Box3DShapedObjectImpl3D* p_other);
+	bool add_overlap(const RID& p_other);
 
 	// Returns true the last time this object stops overlapping (i.e. exited).
-	bool remove_overlap(Box3DShapedObjectImpl3D* p_other);
+	bool remove_overlap(const RID& p_other);
 
-	const HashMap<Box3DShapedObjectImpl3D*, int32_t>& get_overlaps() const { return overlaps; }
+	const HashMap<RID, int32_t>& get_overlaps() const { return overlaps; }
 
 protected:
 	b3BodyId _create_body_id(b3WorldId p_world_id) override;
@@ -104,7 +104,7 @@ private:
 	Callable body_monitor_callback;
 	Callable area_monitor_callback;
 
-	HashMap<Box3DShapedObjectImpl3D*, int32_t> overlaps;
+	HashMap<RID, int32_t> overlaps;
 
 	Vector3 gravity_vector = Vector3(0, -1, 0);
 	float gravity = 9.8f;

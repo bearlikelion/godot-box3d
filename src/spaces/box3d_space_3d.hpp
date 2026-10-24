@@ -1,6 +1,7 @@
 #pragma once
 
 #include <godot_cpp/classes/physics_server3d.hpp>
+#include <godot_cpp/templates/hash_map.hpp>
 #include <godot_cpp/templates/hash_set.hpp>
 #include <godot_cpp/templates/local_vector.hpp>
 #include <godot_cpp/variant/callable.hpp>
@@ -88,6 +89,27 @@ private:
 		uint64_t other_instance_id = 0;
 	};
 
+	// End events can name shapes that were already destroyed, so pairs are resolved from begin time.
+	struct SensorPairKey {
+		uint64_t sensor = 0;
+		uint64_t visitor = 0;
+
+		static uint32_t hash(const SensorPairKey& p_key) {
+			return hash_fmix32(hash_murmur3_one_64(p_key.visitor, hash_murmur3_one_64(p_key.sensor)));
+		}
+
+		bool operator==(const SensorPairKey& p_other) const {
+			return sensor == p_other.sensor && visitor == p_other.visitor;
+		}
+	};
+
+	struct SensorPair {
+		RID area;
+		RID other;
+		uint64_t other_instance_id = 0;
+		bool other_is_area = false;
+	};
+
 	void _call_body_queries();
 
 	void _apply_area_overrides();
@@ -97,8 +119,8 @@ private:
 	void _pull_sensor_events();
 
 	void _queue_area_event(
-			Box3DAreaImpl3D* p_area,
-			Box3DShapedObjectImpl3D* p_other,
+			const Box3DAreaImpl3D& p_area,
+			const SensorPair& p_pair,
 			PhysicsServer3D::AreaBodyStatus p_status);
 
 	RID rid;
@@ -109,6 +131,7 @@ private:
 	HashSet<Box3DBodyImpl3D*> bodies;
 	HashSet<Box3DAreaImpl3D*> areas;
 
+	HashMap<SensorPairKey, SensorPair, SensorPairKey> sensor_pairs;
 	LocalVector<PendingAreaEvent> pending_area_events;
 
 	float last_step = 0.0f;

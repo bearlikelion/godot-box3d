@@ -19,6 +19,9 @@ Motion queries are read-only: they do not move the character or collider, apply 
 Per-call body/object exclusions apply to both recovery and casting.
 `recovery_as_collision=false` suppresses recovery-only collision reporting, not the recovery displacement itself.
 
+The motion cast reports a hit only when the shapes would actually touch, as GodotPhysics3D and Jolt do, not when they come within Box3D's linear slop.
+Motion that starts a few millimeters from a surface still sees it, and sliding flush across the seam between coplanar shapes does not snag on the next shape's edge.
+
 The regressions exercise geometric normals and bounded displacement for five convex shapes, a large query margin, compound floor/wall contacts, priority in a too-narrow passage, rigid loads on stationary/moving characters, and actual `move_and_slide` grounding across slopes and terrain seams.
 These are behavioral checks, not exact cross-engine trajectory comparisons.
 

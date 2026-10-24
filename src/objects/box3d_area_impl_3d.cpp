@@ -99,7 +99,7 @@ Vector3 Box3DAreaImpl3D::compute_gravity(const Vector3& p_position) const {
 	return to_center.normalized() * strength;
 }
 
-bool Box3DAreaImpl3D::add_overlap(Box3DShapedObjectImpl3D* p_other) {
+bool Box3DAreaImpl3D::add_overlap(const RID& p_other) {
 	int32_t* count = overlaps.getptr(p_other);
 	if (count == nullptr) {
 		overlaps.insert(p_other, 1);
@@ -109,7 +109,7 @@ bool Box3DAreaImpl3D::add_overlap(Box3DShapedObjectImpl3D* p_other) {
 	return false;
 }
 
-bool Box3DAreaImpl3D::remove_overlap(Box3DShapedObjectImpl3D* p_other) {
+bool Box3DAreaImpl3D::remove_overlap(const RID& p_other) {
 	int32_t* count = overlaps.getptr(p_other);
 	if (count == nullptr) {
 		return false;
