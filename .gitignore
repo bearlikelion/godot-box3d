@@ -5,3 +5,14 @@ test_project/.godot/
 /test_project/Build
 /build-win
 /benchmark-video
+.deps/
+.venv/
+dist/
+.sconsign.dblite
+*.zip
+__pycache__/
+*.py[cod]
+web_smoke_project/.godot/
+web_smoke_project/addons/godot-box3d/bin/
+web_smoke_project/*.uid
+web_smoke_project/addons/godot-box3d/*.uid

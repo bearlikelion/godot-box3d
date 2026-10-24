@@ -1,3 +1,6 @@
 [submodule "box3d"]
 	path = box3d
-	url = https://github.com/erincatto/box3d
+	url = https://github.com/erincatto/box3d.git
+[submodule "godot-cpp"]
+	path = godot-cpp
+	url = https://github.com/godotengine/godot-cpp.git

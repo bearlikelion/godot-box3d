@@ -32,6 +32,8 @@ Requires Godot 4.3 or newer.
 Linux and Windows are tested; macOS builds are Apple Silicon only and untested.
 Worker threads, length units, and checking that the backend loaded are covered in [Installation](https://bearlikelion.github.io/godot-box3d/installation/).
 
+For Web exports, follow the [Web quick start](WEB_QUICKSTART.md). The Web bundle includes matching Godot templates and the addon side modules.
+
 ## What works
 
 - Rigid, static, and kinematic bodies
