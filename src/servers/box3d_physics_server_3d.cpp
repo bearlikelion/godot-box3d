@@ -146,7 +146,9 @@ RID Box3DPhysicsServer3D::_custom_shape_create() {
 void Box3DPhysicsServer3D::_shape_set_data(const RID& p_shape, const Variant& p_data) {
 	Box3DShapeImpl3D* shape = shape_owner.get_or_null(p_shape);
 	ERR_FAIL_NULL(shape);
+	shape->notify_owners_shape_data_will_change();
 	shape->set_data(p_data);
+	shape->notify_owners_shape_data_changed();
 }
 
 void Box3DPhysicsServer3D::_shape_set_custom_solver_bias(const RID& p_shape, double p_bias) {
@@ -276,7 +278,6 @@ void Box3DPhysicsServer3D::_area_add_shape(const RID& p_area, const RID& p_shape
 	ERR_FAIL_NULL(area);
 	Box3DShapeImpl3D* shape = shape_owner.get_or_null(p_shape);
 	ERR_FAIL_NULL(shape);
-	shape->add_owner(area);
 	area->add_shape(shape, p_transform, p_disabled);
 }
 
@@ -285,7 +286,6 @@ void Box3DPhysicsServer3D::_area_set_shape(const RID& p_area, int32_t p_shape_id
 	ERR_FAIL_NULL(area);
 	Box3DShapeImpl3D* shape = shape_owner.get_or_null(p_shape);
 	ERR_FAIL_NULL(shape);
-	shape->add_owner(area);
 	area->set_shape(p_shape_idx, shape);
 }
 
@@ -461,7 +461,6 @@ void Box3DPhysicsServer3D::_body_add_shape(const RID& p_body, const RID& p_shape
 	ERR_FAIL_NULL(body);
 	Box3DShapeImpl3D* shape = shape_owner.get_or_null(p_shape);
 	ERR_FAIL_NULL(shape);
-	shape->add_owner(body);
 	body->add_shape(shape, p_transform, p_disabled);
 }
 
@@ -470,7 +469,6 @@ void Box3DPhysicsServer3D::_body_set_shape(const RID& p_body, int32_t p_shape_id
 	ERR_FAIL_NULL(body);
 	Box3DShapeImpl3D* shape = shape_owner.get_or_null(p_shape);
 	ERR_FAIL_NULL(shape);
-	shape->add_owner(body);
 	body->set_shape(p_shape_idx, shape);
 }
 
@@ -1323,6 +1321,7 @@ void Box3DPhysicsServer3D::_free_rid(const RID& p_rid) {
 	}
 
 	if (Box3DShapeImpl3D* shape = shape_owner.get_or_null(p_rid)) {
+		shape->remove_self();
 		memdelete(shape);
 		shape_owner.free(p_rid);
 		return;

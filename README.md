@@ -35,7 +35,7 @@ Worker threads, length units, and checking that the backend loaded are covered i
 ## What works
 
 - Rigid, static, and kinematic bodies
-- Box, sphere, capsule, cylinder, convex, trimesh, heightmap, and world boundary shapes
+- Box, sphere, capsule, cylinder, convex, trimesh, heightmap, and world boundary shapes, with live updates of shared resources
 - Areas with overlap events, gravity and damping overrides, and point gravity
 - Ray casts, shape casts, and the other direct space state queries
 - `CharacterBody3D` and `move_and_slide()`
