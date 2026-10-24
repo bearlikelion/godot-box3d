@@ -43,6 +43,11 @@ bool should_report(void* p_user_data, const Box3DQueryFilter3D& p_filter, Box3DS
 	return true;
 }
 
+// The engine reads result colliders as its own Object, not the godot-cpp wrapper ObjectDB returns.
+Object* engine_object(uint64_t p_instance_id) {
+	return reinterpret_cast<Object*>(internal::gdextension_interface_object_get_instance_from_id(p_instance_id));
+}
+
 bool overlap_result_fcn(b3ShapeId p_shape_id, void* p_context) {
 	auto* ctx = static_cast<OverlapContext*>(p_context);
 	if (ctx->count >= ctx->max_results) {
@@ -58,6 +63,7 @@ bool overlap_result_fcn(b3ShapeId p_shape_id, void* p_context) {
 	PhysicsServer3DExtensionShapeResult& result = ctx->results[ctx->count];
 	result.rid = object->get_rid();
 	result.collider_id = object->get_instance_id();
+	result.collider = engine_object(result.collider_id);
 	result.shape = object->find_shape_index(p_shape_id);
 	ctx->count++;
 	return true;
@@ -389,6 +395,7 @@ bool Box3DPhysicsDirectSpaceState3D::_intersect_ray(
 	p_result->normal = b3_to_godot(context.normal);
 	p_result->rid = object->get_rid();
 	p_result->collider_id = object->get_instance_id();
+	p_result->collider = engine_object(p_result->collider_id);
 	p_result->shape = object->find_shape_index(context.shape_id);
 	return true;
 }
