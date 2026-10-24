@@ -6,12 +6,9 @@
 
 #include <box3d/types.h>
 
-// HeightMapShape3D -> a b3HeightFieldData* built via b3CreateHeightField() and shared by
-// every attaching Box3DShapeInstance3D. Static bodies only (matches Box3D's own
-// restriction). Box3D's height field places its local origin at grid corner (0,0); Godot
-// (and godot-jolt) center the grid on the shape origin instead, so the shape instance
-// applies a corner-centering offset when creating the b3ShapeId (see
-// Box3DShapeInstance3D::_create_shape).
+// Godot centers the grid on its shape origin. Box3D's height-field API only creates
+// corner-origin fixtures without a local transform, so use a centered static mesh.
+// Identity attachments share it; transformed attachments own a baked mesh copy.
 class Box3DHeightMapShapeImpl3D final : public Box3DShapeImpl3D {
 public:
 	~Box3DHeightMapShapeImpl3D() override;
@@ -24,7 +21,9 @@ public:
 
 	AABB get_aabb() const override { return aabb; }
 
-	const b3HeightFieldData* get_height_field() const { return height_field; }
+	const b3MeshData* get_mesh() const { return mesh; }
+
+	const PackedVector3Array& get_faces() const { return faces; }
 
 	int get_width() const { return width; }
 
@@ -36,6 +35,7 @@ private:
 	PackedFloat32Array heights;
 	int width = 0;
 	int depth = 0;
-	b3HeightFieldData* height_field = nullptr;
+	PackedVector3Array faces;
+	b3MeshData* mesh = nullptr;
 	AABB aabb;
 };
