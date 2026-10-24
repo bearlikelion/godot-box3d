@@ -10,9 +10,10 @@ using namespace godot;
 class Box3DShapeImpl3D;
 
 // Builds a b3ShapeProxy (point cloud + radius, as used by b3World_OverlapShape/CastShape)
-// matching a given Godot Shape3D: sphere -> 1 point + radius; capsule -> 2 points +
-// radius; box/convex hull -> N hull points + 0 radius, all transformed into p_transform's
-// space. Mesh/heightfield/world-boundary shapes have no finite point-cloud representation
+// matching a given Godot Shape3D: separation ray -> 2 points; sphere -> 1 point + radius;
+// capsule -> 2 points + radius; box/convex hull -> N hull points + 0 radius, all
+// transformed into p_transform's space. Mesh/heightfield/world-boundary shapes have no
+// finite point-cloud representation
 // usable with Box3D's GJK-based queries, so they report is_supported() == false; callers
 // should fall back to a different strategy (e.g. AABB overlap) for those shape types.
 class Box3DShapeProxy3D {
