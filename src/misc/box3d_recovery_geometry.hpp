@@ -11,6 +11,23 @@ struct Box3DRecoveryContact {
 	float separation;
 };
 
+// A resource query has no live fixture. Build its convex geometry once per query,
+// then visit native target fixtures without modifying the physics world.
+class Box3DContactQuery3D {
+public:
+	explicit Box3DContactQuery3D(const b3ShapeProxy& p_proxy);
+	~Box3DContactQuery3D();
+	Box3DContactQuery3D(const Box3DContactQuery3D&) = delete;
+	Box3DContactQuery3D& operator=(const Box3DContactQuery3D&) = delete;
+
+	void contacts(b3Transform p_transform, b3ShapeId p_target, float p_margin,
+			godot::LocalVector<Box3DRecoveryContact>& r_contacts) const;
+
+private:
+	b3ShapeProxy proxy;
+	b3HullData* hull = nullptr;
+};
+
 // Live fixtures already contain local shape transforms (including baked meshes).
 // Supply the hypothetical query body transform without changing the live body.
 void box3d_recovery_contacts(b3ShapeId p_query, b3Transform p_query_transform,

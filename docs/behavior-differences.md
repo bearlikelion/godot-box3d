@@ -4,7 +4,7 @@ title: Behavior differences
 
 # Behavior differences
 
-Places where Box3D behaves differently from Godot's built-in physics. These are design differences in the underlying engine, not bugs, and none of them are things a drop-in backend can paper over.
+Places where the underlying engine or current adapter behaves differently from Godot's built-in physics.
 
 How `CharacterBody3D` recovers from overlaps is covered separately in [Character motion recovery]({{ '/character-motion/' | relative_url }}).
 
@@ -16,13 +16,13 @@ So an `Area3D` silently ignores a body whose shape is a trimesh or heightmap: no
 
 If you need a body to be detected by an area, give it a convex shape. A trimesh may still be used *as* an `Area3D`'s own shape to detect convex bodies passing through it.
 
-## `collide_shape()` reports contact points without penetration depth
+## Direct shape query contacts
 
-Box3D exposes GJK, which finds the closest points between two shapes but cannot measure how far they already overlap.
+`collide_shape()` returns world-space query/target surface pairs for convex queries against primitives, trimeshes and heightmaps. Overlapping pairs encode the penetration vector; positive-distance contacts within the query margin use closest surface points.
 
-For a genuinely overlapping pair, both returned points are the same witness point, so the pair's separation reads as zero. Godot's built-in physics returns two points whose distance is the penetration depth.
+`get_rest_info()` checks the supplied pose and ignores motion. It selects the deepest contact, reports a target-surface point and normal, and includes angular velocity at that point. These queries honor result limits, masks and exclusions without changing live bodies.
 
-Whether shapes overlap, which bodies they are, `max_results`, and `collision_mask` all behave normally. Use it to answer "is anything here, and roughly where" rather than "how deep".
+`intersect_shape()` and `cast_motion()` honor the supplied margin. Cast safe fractions back off by native linear slop and can differ from unsafe fractions.
 
 ## Shape queries need a convex query shape
 

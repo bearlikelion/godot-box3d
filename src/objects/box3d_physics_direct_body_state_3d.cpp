@@ -99,7 +99,9 @@ Vector3 Box3DPhysicsDirectBodyState3D::_get_velocity_at_local_position(const Vec
 	if (!body->has_body_id()) {
 		return Vector3();
 	}
-	const Vector3 world_point = body->get_transform().xform(p_local_position);
+	// Godot passes a world-axis offset from the body origin, not a body-space
+	// point. Rotating it again gives the wrong tangential platform velocity.
+	const Vector3 world_point = body->get_transform().origin + p_local_position;
 	return b3_to_godot(b3Body_GetWorldPointVelocity(body->get_body_id(), godot_to_b3(world_point)));
 }
 
