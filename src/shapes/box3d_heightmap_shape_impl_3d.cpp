@@ -1,13 +1,13 @@
 #include "box3d_heightmap_shape_impl_3d.hpp"
 
+#include "box3d_concave_polygon_shape_impl_3d.hpp"
+
 #include <box3d/collision.h>
 
-#include <limits>
-
 Box3DHeightMapShapeImpl3D::~Box3DHeightMapShapeImpl3D() {
-	if (height_field != nullptr) {
-		b3DestroyHeightField(height_field);
-		height_field = nullptr;
+	if (mesh != nullptr) {
+		b3DestroyMesh(mesh);
+		mesh = nullptr;
 	}
 }
 
@@ -50,48 +50,51 @@ void Box3DHeightMapShapeImpl3D::set_data(const Variant& p_data) {
 }
 
 void Box3DHeightMapShapeImpl3D::_rebuild() {
-	if (height_field != nullptr) {
-		b3DestroyHeightField(height_field);
-		height_field = nullptr;
+	if (mesh != nullptr) {
+		b3DestroyMesh(mesh);
+		mesh = nullptr;
 	}
+	faces.clear();
+	aabb = AABB();
 
 	if (width < 2 || depth < 2 || heights.size() != width * depth) {
 		return;
 	}
 
-	float min_height = heights[0];
-	float max_height = heights[0];
-	for (int i = 0; i < heights.size(); i++) {
-		const float h = heights[i];
-		if (h < min_height) {
-			min_height = h;
-		}
-		if (h > max_height) {
-			max_height = h;
+	const real_t half_x = (real_t)(width - 1) * 0.5;
+	const real_t half_z = (real_t)(depth - 1) * 0.5;
+	faces.resize((width - 1) * (depth - 1) * 6);
+	int next = 0;
+	for (int z = 0; z < depth - 1; z++) {
+		for (int x = 0; x < width - 1; x++) {
+			const Vector3 a(x - half_x, heights[z * width + x], z - half_z);
+			const Vector3 b(x + 1 - half_x, heights[z * width + x + 1], z - half_z);
+			const Vector3 c(x - half_x, heights[(z + 1) * width + x], z + 1 - half_z);
+			const Vector3 d(x + 1 - half_x, heights[(z + 1) * width + x + 1], z + 1 - half_z);
+			// The same diagonal and winding as Godot's heightmap debug geometry.
+			// NaN vertices are holes, never inputs to the native mesh builder.
+			if (a.is_finite() && b.is_finite() && c.is_finite()) {
+				faces.set(next++, a);
+				faces.set(next++, b);
+				faces.set(next++, c);
+			}
+			if (b.is_finite() && d.is_finite() && c.is_finite()) {
+				faces.set(next++, b);
+				faces.set(next++, d);
+				faces.set(next++, c);
+			}
 		}
 	}
-
-	if (min_height == max_height) {
-		// Box3D requires a non-degenerate quantization range.
-		max_height = min_height + 0.001f;
+	faces.resize(next);
+	if (faces.is_empty()) {
+		return;
 	}
-
-	b3HeightFieldDef def = {};
-	def.heights = heights.ptrw();
-	def.materialIndices = nullptr;
-	def.scale = b3Vec3{1.0f, 1.0f, 1.0f};
-	def.countX = width;
-	def.countZ = depth;
-	def.globalMinimumHeight = min_height;
-	def.globalMaximumHeight = max_height;
-	def.clockwiseWinding = false;
-
-	height_field = b3CreateHeightField(&def);
-
-	const float half_x = (float)(width - 1) * 0.5f;
-	const float half_z = (float)(depth - 1) * 0.5f;
-	aabb = AABB(
-		Vector3(-half_x, min_height, -half_z),
-		Vector3((float)(width - 1), max_height - min_height, (float)(depth - 1))
-	);
+	Vector3 min_point = faces[0];
+	Vector3 max_point = faces[0];
+	for (int i = 1; i < faces.size(); i++) {
+		min_point = min_point.min(faces[i]);
+		max_point = max_point.max(faces[i]);
+	}
+	aabb = AABB(min_point, max_point - min_point);
+	mesh = Box3DConcavePolygonShapeImpl3D::build_mesh(faces, Transform3D());
 }

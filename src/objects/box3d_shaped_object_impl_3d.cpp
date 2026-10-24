@@ -135,12 +135,20 @@ b3ShapeId create_box3d_shape(
 
 		case PhysicsServer3D::SHAPE_HEIGHTMAP: {
 			auto* height_shape = static_cast<Box3DHeightMapShapeImpl3D*>(shape);
-			const b3HeightFieldData* height_field = height_shape->get_height_field();
-			if (height_field == nullptr) {
+			const b3MeshData* mesh = height_shape->get_mesh();
+			if (mesh == nullptr) {
 				return b3_nullShapeId;
 			}
 			def.invokeContactCreation = true;
-			return b3CreateHeightFieldShape(p_body_id, &def, height_field);
+			if (local.origin == Vector3() && local.basis.is_equal_approx(Basis())) {
+				return b3CreateMeshShape(p_body_id, &def, mesh, b3Vec3{1.0f, 1.0f, 1.0f});
+			}
+			b3MeshData* baked = Box3DConcavePolygonShapeImpl3D::build_mesh(height_shape->get_faces(), local);
+			if (baked == nullptr) {
+				return b3_nullShapeId;
+			}
+			p_instance.set_owned_mesh(baked);
+			return b3CreateMeshShape(p_body_id, &def, baked, b3Vec3{1.0f, 1.0f, 1.0f});
 		}
 
 		case PhysicsServer3D::SHAPE_WORLD_BOUNDARY: {
