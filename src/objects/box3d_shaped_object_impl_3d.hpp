@@ -38,6 +38,12 @@ public:
 
 	void clear_shapes();
 
+	// Shared Shape3D resources own geometry buffers that Box3D fixtures may reference. Drop
+	// those fixtures before the data changes, then recreate every matching attachment.
+	void shape_data_will_change(const Box3DShapeImpl3D* p_shape);
+
+	void shape_data_changed(const Box3DShapeImpl3D* p_shape);
+
 	int32_t get_shape_count() const { return (int32_t)shapes.size(); }
 
 	Box3DShapeImpl3D* get_shape(int32_t p_index) const;
