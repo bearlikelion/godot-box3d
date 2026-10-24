@@ -6,6 +6,7 @@
 #include "../shapes/box3d_capsule_shape_impl_3d.hpp"
 #include "../shapes/box3d_convex_polygon_shape_impl_3d.hpp"
 #include "../shapes/box3d_cylinder_shape_impl_3d.hpp"
+#include "../shapes/box3d_separation_ray_shape_impl_3d.hpp"
 #include "../shapes/box3d_shape_impl_3d.hpp"
 #include "../shapes/box3d_sphere_shape_impl_3d.hpp"
 
@@ -18,6 +19,18 @@ Box3DShapeProxy3D::Box3DShapeProxy3D(const Box3DShapeImpl3D* p_shape, const Tran
 	const float margin = MAX(0.0f, (float)p_margin);
 
 	switch (p_shape->get_type()) {
+		case PhysicsServer3D::SHAPE_SEPARATION_RAY: {
+			const auto* ray = static_cast<const Box3DSeparationRayShapeImpl3D*>(p_shape);
+			points.resize(2);
+			points[0] = godot_to_b3(p_transform.origin);
+			points[1] = godot_to_b3(p_transform.xform(Vector3(0, 0, ray->get_length())));
+			proxy.points = points.ptr();
+			proxy.count = 2;
+			proxy.radius = 0.0f;
+			supported = true;
+			break;
+		}
+
 		case PhysicsServer3D::SHAPE_SPHERE: {
 			const auto* sphere = static_cast<const Box3DSphereShapeImpl3D*>(p_shape);
 			points.resize(1);
