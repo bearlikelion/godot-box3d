@@ -7,6 +7,7 @@
 #include "../objects/box3d_body_impl_3d.hpp"
 #include "../objects/box3d_shaped_object_impl_3d.hpp"
 #include "../servers/box3d_physics_server_3d.hpp"
+#include "../shapes/box3d_separation_ray_shape_impl_3d.hpp"
 #include "../shapes/box3d_shape_impl_3d.hpp"
 #include "box3d_query_filter_3d.hpp"
 #include "box3d_space_3d.hpp"
@@ -198,6 +199,8 @@ struct MotionCastContext {
 	b3Transform query_transform{};
 	b3Vec3 motion{};
 	float margin = 0.0f;
+	bool override_normal = false;
+	Vector3 normal_override;
 	bool has_hit = false;
 	Box3DShapedObjectImpl3D* object = nullptr;
 	b3Pos point{};
@@ -237,7 +240,7 @@ float motion_cast_result_fcn(
 		}
 		normal = contact.normal;
 		point = contact.point;
-	} else if (p_fraction <= CMP_EPSILON && b3LengthSquared(p_normal) < 0.25f) {
+	} else if (!ctx->override_normal && p_fraction <= CMP_EPSILON && b3LengthSquared(p_normal) < 0.25f) {
 		return -1.0f;
 	}
 
@@ -245,7 +248,7 @@ float motion_cast_result_fcn(
 	MotionCollisionData collision;
 	collision.object = object;
 	collision.position = b3_to_godot(point);
-	collision.normal = b3_to_godot(normal);
+	collision.normal = ctx->override_normal ? ctx->normal_override : b3_to_godot(normal);
 	collision.fraction = fraction;
 	collision.local_shape = ctx->local_shape;
 	collision.collider_shape = collider_shape;
@@ -257,7 +260,7 @@ float motion_cast_result_fcn(
 	ctx->has_hit = true;
 	ctx->object = object;
 	ctx->point = point;
-	ctx->normal = normal;
+	ctx->normal = ctx->override_normal ? godot_to_b3(ctx->normal_override) : normal;
 	ctx->fraction = fraction;
 	ctx->collider_shape = collider_shape;
 	return fraction;
@@ -621,6 +624,7 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 		const Vector3& p_motion,
 		double p_margin,
 		int32_t p_max_collisions,
+		bool p_collide_separation_ray,
 		bool p_recovery_as_collision,
 		PhysicsServer3DExtensionMotionResult* p_result) const {
 	ERR_FAIL_NULL_V(space, false);
@@ -664,7 +668,50 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 				continue;
 			}
 			Box3DShapeImpl3D* shape = p_body.get_shape(i);
-			if (shape == nullptr || !p_body.has_shape_id(i)) {
+			if (shape == nullptr) {
+				continue;
+			}
+			if (shape->get_type() == PhysicsServer3D::SHAPE_SEPARATION_RAY) {
+				const auto* ray = static_cast<const Box3DSeparationRayShapeImpl3D*>(shape);
+				found_supported_shape = true;
+				const Transform3D shape_transform = recovered_transform * p_body.get_shape_transform(i);
+				const Vector3 ray_vector = shape_transform.basis.get_column(2) * ray->get_length();
+				const real_t ray_length = ray_vector.length();
+				if (ray_length <= CMP_EPSILON) {
+					continue;
+				}
+				const Vector3 ray_direction = ray_vector / ray_length;
+				RayContext ray_context;
+				ray_context.filter = &filter;
+				b3World_CastRay(space->get_world_id(), godot_to_b3(shape_transform.origin),
+						godot_to_b3(ray_direction * (ray_length + margin)), filter.filter, cast_result_fcn, &ray_context);
+				if (!ray_context.has_hit) {
+					continue;
+				}
+				const Vector3 surface_normal = b3_to_godot(ray_context.normal).normalized();
+				const real_t facing = surface_normal.dot(-ray_direction);
+				const real_t penetration = (ray_length + margin) * (1.0 - ray_context.fraction) - margin;
+				if (facing <= CMP_EPSILON || penetration <= CMP_EPSILON) {
+					continue;
+				}
+				const Vector3 normal = ray->get_slide_on_slope() ? surface_normal : -ray_direction;
+				const real_t depth = ray->get_slide_on_slope() ? penetration * facing : penetration;
+				auto* object = dynamic_cast<Box3DBodyImpl3D*>(
+						static_cast<Box3DShapedObjectImpl3D*>(b3Body_GetUserData(b3Shape_GetBody(ray_context.shape_id))));
+				if (object != nullptr) {
+					append_recovery_plane(planes, normal, depth, *object);
+					MotionCollisionData collision;
+					collision.object = object;
+					collision.position = b3_to_godot(ray_context.point);
+					collision.normal = normal;
+					collision.depth = depth;
+					collision.local_shape = i;
+					collision.collider_shape = object->find_shape_index(ray_context.shape_id);
+					append_motion_collision(recovery_collisions, collision);
+				}
+				continue;
+			}
+			if (!p_body.has_shape_id(i)) {
 				continue;
 			}
 			const Box3DShapeProxy3D shape_proxy(shape, recovered_transform * p_body.get_shape_transform(i), margin);
@@ -714,7 +761,14 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 		if (shape == nullptr) {
 			continue;
 		}
-		const Box3DShapeProxy3D shape_proxy(shape, recovered_transform * p_body.get_shape_transform(i), margin);
+		const bool is_separation_ray = shape->get_type() == PhysicsServer3D::SHAPE_SEPARATION_RAY;
+		const auto* ray = is_separation_ray ? static_cast<const Box3DSeparationRayShapeImpl3D*>(shape) : nullptr;
+		if (ray != nullptr && !p_collide_separation_ray && !ray->get_slide_on_slope()) {
+			continue;
+		}
+
+		const Transform3D shape_transform = recovered_transform * p_body.get_shape_transform(i);
+		const Box3DShapeProxy3D shape_proxy(shape, shape_transform, margin);
 		if (!shape_proxy.is_supported()) {
 			continue;
 		}
@@ -731,6 +785,10 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 		context.motion = godot_to_b3(p_motion);
 		context.margin = (float)margin;
 		context.local_shape = i;
+		if (ray != nullptr && !ray->get_slide_on_slope()) {
+			context.override_normal = true;
+			context.normal_override = -shape_transform.basis.get_column(2).normalized();
+		}
 		b3World_CastShape(
 				space->get_world_id(),
 				b3Vec3_zero,

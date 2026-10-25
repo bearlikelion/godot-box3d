@@ -8,6 +8,16 @@ Places where the underlying engine or current adapter behaves differently from G
 
 How `CharacterBody3D` recovers from overlaps is covered separately in [Character motion recovery]({{ '/character-motion/' | relative_url }}).
 
+## Separation rays are query-only
+
+`SeparationRayShape3D` participates in direct shape queries and in `body_test_motion`, including `CharacterBody3D` floor snap and `slide_on_slope`. It does not create a Box3D fixture, so attaching one to a `RigidBody3D` or `Area3D` does not add ordinary contacts or monitoring events.
+
+This keeps the zero-width ray from changing body mass or generating regular collision response. Use it for character motion, which is its intended Godot use; use a finite convex shape when a simulated body or area needs contacts.
+
+An embedded ray endpoint still participates in overlap recovery when
+`collide_separation_ray` is false. That flag only gates the requested-motion
+cast for non-sliding rays; `slide_on_slope` rays also participate in casting.
+
 ## `Area3D` does not detect trimesh or heightmap bodies
 
 In Box3D a concave shape (`ConcavePolygonShape3D`) or `HeightMapShape3D` can never act as a sensor *visitor*, by design, since testing an arbitrary mesh against a sensor is too expensive.

@@ -35,7 +35,7 @@ Worker threads, length units, and checking that the backend loaded are covered i
 ## What works
 
 - Rigid, static, and kinematic bodies
-- Box, sphere, capsule, cylinder, convex, trimesh, heightmap, and world boundary shapes, with live updates of shared resources
+- Box, sphere, capsule, cylinder, convex, trimesh, heightmap, world boundary, and query-only separation ray shapes, with live updates of shared resources
 - Areas with overlap events, gravity and damping overrides, and point gravity
 - Ray casts, shape casts, and the other direct space state queries
 - `CharacterBody3D` and `move_and_slide()`
@@ -43,7 +43,7 @@ Worker threads, length units, and checking that the backend loaded are covered i
 - Pin, hinge, and slider joints
 - A multithreaded solver with identical results at any worker count
 
-Not done yet: separation ray shapes, ConeTwist and `Generic6DOFJoint3D`, `SoftBody3D`, solver profiling, and more platforms.
+Not done yet: ConeTwist and `Generic6DOFJoint3D`, `SoftBody3D`, solver profiling, and more platforms.
 A few things also behave differently from Godot's built-in physics, listed in [Behavior differences](https://bearlikelion.github.io/godot-box3d/behavior-differences/).
 
 ## Benchmark
