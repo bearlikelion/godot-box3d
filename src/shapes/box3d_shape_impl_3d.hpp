@@ -1,7 +1,7 @@
 #pragma once
 
 #include <godot_cpp/classes/physics_server3d.hpp>
-#include <godot_cpp/templates/hash_set.hpp>
+#include <godot_cpp/templates/hash_map.hpp>
 #include <godot_cpp/variant/aabb.hpp>
 #include <godot_cpp/variant/rid.hpp>
 #include <godot_cpp/variant/variant.hpp>
@@ -37,9 +37,13 @@ public:
 
 	void remove_owner(Box3DShapedObjectImpl3D* p_owner);
 
-	const HashSet<Box3DShapedObjectImpl3D*>& get_owners() const { return owners; }
+	void notify_owners_shape_data_will_change();
+
+	void notify_owners_shape_data_changed();
+
+	void remove_self();
 
 protected:
 	RID rid;
-	HashSet<Box3DShapedObjectImpl3D*> owners;
+	HashMap<Box3DShapedObjectImpl3D*, int32_t> owner_ref_counts;
 };
