@@ -51,6 +51,8 @@ public:
 
 	void set_mode(BodyMode p_mode);
 
+	void set_transform(const Transform3D& p_transform);
+
 	// Godot semantics: mass is always the explicitly set value (default 1.0), never
 	// derived from shape volume like native Box3D.
 	real_t get_mass() const { return mass; }
@@ -209,6 +211,10 @@ private:
 	void _refresh_mass_data();
 
 	BodyMode mode = PhysicsServer3D::BODY_MODE_RIGID;
+	Transform3D kinematic_target;
+	bool kinematic_target_pending = false;
+	bool target_driven = false;
+	bool kinematic_transform_initialized = false;
 
 	real_t collision_priority = 1.0;
 

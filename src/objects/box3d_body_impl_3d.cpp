@@ -1,4 +1,5 @@
 #include "box3d_body_impl_3d.hpp"
+#include "../spaces/box3d_space_3d.hpp"
 
 #include "../misc/type_conversions.hpp"
 #include "box3d_physics_direct_body_state_3d.hpp"
@@ -69,11 +70,32 @@ void Box3DBodyImpl3D::set_mode(BodyMode p_mode) {
 		return;
 	}
 	mode = p_mode;
+	kinematic_target_pending = false;
+	target_driven = false;
+	kinematic_transform_initialized = false;
 	if (has_body_id()) {
 		b3Body_SetType(body_id, to_box3d_body_type(mode));
 		_update_motion_locks();
 		_refresh_mass_data();
 	}
+}
+
+void Box3DBodyImpl3D::set_transform(const Transform3D& p_transform) {
+	if (mode == PhysicsServer3D::BODY_MODE_KINEMATIC && has_body_id() && kinematic_transform_initialized && state_sync_callback.is_valid()) {
+		// Transform-driven kinematic bodies need a velocity during the next
+		// simulation step. Teleporting them loses platform carry and can race
+		// their state-sync callback. Multiple writes keep the last target.
+		kinematic_target = p_transform;
+		kinematic_target_pending = true;
+		target_driven = true;
+		return;
+	}
+	// Characters publish collision-tested transforms directly. Deferring those
+	// writes would hide even explicitly synchronized movement from other queries.
+	kinematic_target_pending = false;
+	target_driven = false;
+	Box3DShapedObjectImpl3D::set_transform(p_transform);
+	kinematic_transform_initialized = mode == PhysicsServer3D::BODY_MODE_KINEMATIC;
 }
 
 void Box3DBodyImpl3D::set_mass(real_t p_mass) {
@@ -191,6 +213,8 @@ Vector3 Box3DBodyImpl3D::get_linear_velocity() const {
 }
 
 void Box3DBodyImpl3D::set_linear_velocity(const Vector3& p_velocity) {
+	target_driven = false;
+	kinematic_target_pending = false;
 	initial_linear_velocity = p_velocity;
 	if (has_body_id()) {
 		b3Body_SetLinearVelocity(body_id, godot_to_b3(p_velocity));
@@ -205,6 +229,8 @@ Vector3 Box3DBodyImpl3D::get_angular_velocity() const {
 }
 
 void Box3DBodyImpl3D::set_angular_velocity(const Vector3& p_velocity) {
+	target_driven = false;
+	kinematic_target_pending = false;
 	initial_angular_velocity = p_velocity;
 	if (has_body_id()) {
 		b3Body_SetAngularVelocity(body_id, godot_to_b3(p_velocity));
@@ -452,6 +478,18 @@ void Box3DBodyImpl3D::pre_step() {
 		applied_force = Vector3();
 		applied_torque = Vector3();
 		return;
+	}
+	if (mode == PhysicsServer3D::BODY_MODE_KINEMATIC && target_driven) {
+		if (kinematic_target_pending && get_space()->get_last_step() > 0.0f) {
+			// Animated targets must not inherit the mover API's sleep dead zone.
+			b3Body_SetSleepThreshold(body_id, 0.0f);
+			b3Body_SetTargetTransform(body_id, godot_to_b3_transform(kinematic_target), get_space()->get_last_step(), true);
+			b3Body_SetSleepThreshold(body_id, (float)sleep_threshold);
+		} else {
+			b3Body_SetLinearVelocity(body_id, b3Vec3_zero);
+			b3Body_SetAngularVelocity(body_id, b3Vec3_zero);
+		}
+		kinematic_target_pending = false;
 	}
 	if (!omit_force_integration) {
 		const Vector3 total_force = applied_force + constant_force;

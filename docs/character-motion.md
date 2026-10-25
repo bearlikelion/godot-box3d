@@ -25,6 +25,20 @@ Motion that starts a few millimeters from a surface still sees it, and sliding f
 The regressions exercise geometric normals and bounded displacement for five convex shapes, a large query margin, compound floor/wall contacts, priority in a too-narrow passage, rigid loads on stationary/moving characters, and actual `move_and_slide` grounding across slopes and terrain seams.
 These are behavioral checks, not exact cross-engine trajectory comparisons.
 
+## Animated platforms
+
+Transform-driven kinematic bodies with a state-sync callback, including
+`AnimatableBody3D`, retain the last animation target for the next physics step.
+Their linear/angular velocity lets grounded characters ride the platform;
+stopping an animation clears that velocity. Initial placement is immediate,
+and small translation/rotation targets remain effective below the mover API's
+sleep threshold. Explicit velocity setters select velocity-driven motion.
+
+Characters apply their collision-tested transforms when Godot publishes them.
+The queued animation path must not delay explicitly synchronized character
+updates. The platform and character-pair regressions cover carry, stopping,
+small targets and visibility in either character update order.
+
 These fixes address adapter behavior.
 They do not add dynamic concave bodies, concave query shapes or sensor visits by concave bodies; those remain separate Box3D restrictions.
 Non-uniform collision-shape scaling is not certified by this milestone; use dimensions on the shape resource and unit-scale body transforms.
