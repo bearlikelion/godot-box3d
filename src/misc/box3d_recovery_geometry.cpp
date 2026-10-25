@@ -20,11 +20,22 @@ struct Geometry {
 		}
 	}
 
+	Geometry(const b3ShapeProxy& p_proxy, const b3HullData* p_hull) :
+			type(p_proxy.count == 1 ? b3_sphereShape : p_proxy.count == 2 ? b3_capsuleShape : b3_hullShape) {
+		if (type == b3_sphereShape) {
+			sphere = {p_proxy.points[0], p_proxy.radius};
+		} else if (type == b3_capsuleShape) {
+			capsule = {p_proxy.points[0], p_proxy.points[1], p_proxy.radius};
+		} else {
+			hull = p_hull;
+		}
+	}
+
 	b3ShapeProxy proxy() const {
 		switch (type) {
 			case b3_sphereShape: return b3ShapeProxy{&sphere.center, 1, sphere.radius};
 			case b3_capsuleShape: return b3ShapeProxy{&capsule.center1, 2, capsule.radius};
-			case b3_hullShape: return b3ShapeProxy{b3GetHullPoints(hull), hull->vertexCount, 0.0f};
+			case b3_hullShape: return hull ? b3ShapeProxy{b3GetHullPoints(hull), hull->vertexCount, 0.0f} : b3ShapeProxy{};
 			default: return b3ShapeProxy{};
 		}
 	}
@@ -64,7 +75,8 @@ void append_margin_contact(b3ShapeProxy p_target, b3ShapeProxy p_query,
 	const b3DistanceOutput output = b3ShapeDistance(&input, &cache, nullptr, 0);
 	if (output.distance > 1e-6f && output.distance <= p_margin) {
 		const b3Vec3 normal = b3Normalize(b3Sub(output.pointB, output.pointA));
-		r_contacts.push_back({b3TransformPoint(p_target_transform, output.pointA),
+		const b3Vec3 midpoint = b3MulSV(0.5f, b3Add(output.pointA, output.pointB));
+		r_contacts.push_back({b3TransformPoint(p_target_transform, midpoint),
 				b3RotateVector(p_target_transform.q, normal), output.distance});
 	}
 }
@@ -213,9 +225,8 @@ float box3d_cast_to_contact(b3ShapeId p_query, b3Transform p_query_transform, b3
 	return best.fraction;
 }
 
-void box3d_recovery_contacts(b3ShapeId p_query, b3Transform p_query_transform,
+static void geometry_contacts(const Geometry& query, b3Transform p_query_transform,
 		b3ShapeId p_target, float p_margin, godot::LocalVector<Box3DRecoveryContact>& r_contacts) {
-	const Geometry query(p_query);
 	const Geometry target(p_target);
 	if (query.proxy().count == 0) {
 		return;
@@ -292,4 +303,29 @@ void box3d_recovery_contacts(b3ShapeId p_query, b3Transform p_query_transform,
 		append_margin_contact(target.proxy(), query.proxy(), b3InvMulTransforms(target_transform, p_query_transform),
 				target_transform, p_margin, r_contacts);
 	}
+}
+
+Box3DContactQuery3D::Box3DContactQuery3D(const b3ShapeProxy& p_proxy) : proxy(p_proxy) {
+	if (proxy.count >= 4) {
+		hull = b3CreateHull(proxy.points, proxy.count, proxy.count < 255 ? proxy.count : 255);
+	}
+}
+
+Box3DContactQuery3D::~Box3DContactQuery3D() {
+	if (hull != nullptr) {
+		b3DestroyHull(hull);
+	}
+}
+
+void Box3DContactQuery3D::contacts(b3Transform p_transform, b3ShapeId p_target, float p_margin,
+		godot::LocalVector<Box3DRecoveryContact>& r_contacts) const {
+	if (proxy.count <= 0) {
+		return;
+	}
+	geometry_contacts(Geometry(proxy, hull), p_transform, p_target, p_margin, r_contacts);
+}
+
+void box3d_recovery_contacts(b3ShapeId p_query, b3Transform p_query_transform,
+		b3ShapeId p_target, float p_margin, godot::LocalVector<Box3DRecoveryContact>& r_contacts) {
+	geometry_contacts(Geometry(p_query), p_query_transform, p_target, p_margin, r_contacts);
 }
