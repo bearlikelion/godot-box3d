@@ -19,6 +19,12 @@ set(BOX3D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(box3d)
 
+if(EMSCRIPTEN)
+	# Emscripten defaults shared targets to static archives; build a Wasm side module instead.
+	set_property(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS TRUE)
+	set_target_properties(box3d PROPERTIES POSITION_INDEPENDENT_CODE ON)
+endif()
+
 # --- godot-cpp (fetched via ExternalProject_Add) ---
 include(cmake/GodotBox3DExternalGodotCpp.cmake)
 
@@ -38,6 +44,15 @@ target_precompile_headers(godot-box3d PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/p
 target_link_libraries(godot-box3d PRIVATE box3d::box3d godot-cpp)
 
 target_compile_features(godot-box3d PRIVATE cxx_std_17)
+
+if(EMSCRIPTEN)
+	target_compile_definitions(godot-box3d PRIVATE WEB_ENABLED UNIX_ENABLED
+		"$<$<CONFIG:Debug>:DEBUG_ENABLED;DEBUG_METHODS_ENABLED>"
+	)
+	# Match the official templates' Wasm longjmp ABI.
+	target_compile_options(godot-box3d PRIVATE -sSUPPORT_LONGJMP=wasm)
+	target_link_options(godot-box3d PRIVATE -sSIDE_MODULE=1 -sSUPPORT_LONGJMP=wasm)
+endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 	target_compile_options(godot-box3d PRIVATE -Wall)
@@ -65,6 +80,13 @@ set_target_properties(godot-box3d PROPERTIES
 	CXX_VISIBILITY_PRESET hidden
 	VISIBILITY_INLINES_HIDDEN ON
 )
+
+if(EMSCRIPTEN)
+	set_target_properties(godot-box3d PROPERTIES
+		OUTPUT_NAME "godot-box3d.web.$<LOWER_CASE:$<CONFIG>>.wasm32.nothreads"
+		SUFFIX ".wasm"
+	)
+endif()
 
 # Exported godot-cpp statics become STB_GNU_UNIQUE and get merged with other extensions'
 # copies despite RTLD_DEEPBIND, so only the entry symbol may leave the library.
