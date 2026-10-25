@@ -105,8 +105,42 @@ jobs:
           name: godot-box3d-${{ runner.os }}
           path: bin/
 
+  web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        build-type: [Debug, Release]
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: "4"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - uses: actions/checkout@v7
+        with:
+          repository: emscripten-core/emsdk
+          ref: e4fe26ef59168ff44f4c23c466e497bf60b3411e
+          path: .emsdk
+
+      - name: Build Web extension
+        run: |
+          .emsdk/emsdk install 4.0.20
+          .emsdk/emsdk activate 4.0.20
+          source .emsdk/emsdk_env.sh
+          emcmake cmake -B build-web -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build-type }}
+          cmake --build build-web --parallel 4
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: godot-box3d-Web-${{ matrix.build-type }}
+          path: bin/*.wasm
+          if-no-files-found: error
+
   release:
-    needs: build
+    needs: [build, web]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -130,6 +164,7 @@ jobs:
           cp LICENSE addon/addons/godot-box3d/
           cp bin/libgodot-box3d.so bin/godot-box3d.dll bin/libgodot-box3d.dylib \
             addon/addons/godot-box3d/bin/
+          cp bin/libgodot-box3d.web.*.wasm addon/addons/godot-box3d/bin/
           cd addon && zip -r ../godot-box3d-${{ github.ref_name }}.zip addons
 
       - name: Release
