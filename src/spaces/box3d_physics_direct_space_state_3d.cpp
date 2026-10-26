@@ -7,6 +7,7 @@
 #include "../objects/box3d_body_impl_3d.hpp"
 #include "../objects/box3d_shaped_object_impl_3d.hpp"
 #include "../servers/box3d_physics_server_3d.hpp"
+#include "../shapes/box3d_concave_polygon_shape_impl_3d.hpp"
 #include "../shapes/box3d_separation_ray_shape_impl_3d.hpp"
 #include "../shapes/box3d_shape_impl_3d.hpp"
 #include "box3d_query_filter_3d.hpp"
@@ -140,20 +141,36 @@ b3AABB proxy_bounds(const b3ShapeProxy& p_proxy, float p_margin) {
 
 struct RayContext {
 	const Box3DQueryFilter3D* filter = nullptr;
-	bool hit_from_inside = false;
+	bool hit_from_inside = true;
 	bool has_hit = false;
 	b3ShapeId shape_id = b3_nullShapeId;
 	b3Pos point{};
 	b3Vec3 normal{};
 	float fraction = 1.0f;
+	int32_t face_index = -1;
+	b3Vec3 origin{};
+	b3Vec3 translation{};
 };
 
-float cast_result_fcn(b3ShapeId p_shape_id, b3Pos p_point, b3Vec3 p_normal, float p_fraction, uint64_t, int, int, void* p_context) {
+int32_t input_face_index(b3ShapeId p_shape_id, Box3DShapedObjectImpl3D* p_object, int p_triangle) {
+	const int32_t slot = p_object->find_shape_index(p_shape_id);
+	if (p_triangle < 0 || slot < 0 || p_object->get_shape(slot)->get_type() != PhysicsServer3D::SHAPE_CONCAVE_POLYGON) {
+		return -1;
+	}
+	const b3Mesh mesh = b3Shape_GetMesh(p_shape_id);
+	// BVH construction reorders triangles; unwelded vertex indices preserve input face groups.
+	return b3GetMeshTriangles(mesh.data)[p_triangle].index1 / 3;
+}
+
+float cast_result_fcn(b3ShapeId p_shape_id, b3Pos p_point, b3Vec3 p_normal, float p_fraction, uint64_t, int p_triangle, int, void* p_context) {
 	auto* ctx = static_cast<RayContext*>(p_context);
 
 	const b3BodyId body_id = b3Shape_GetBody(p_shape_id);
 	Box3DShapedObjectImpl3D* object = nullptr;
 	if (!should_report(b3Body_GetUserData(body_id), *ctx->filter, object)) {
+		return -1.0f;
+	}
+	if (!ctx->hit_from_inside && p_fraction == 0.0f && b3LengthSquared(p_normal) < 1e-10f) {
 		return -1.0f;
 	}
 
@@ -162,7 +179,84 @@ float cast_result_fcn(b3ShapeId p_shape_id, b3Pos p_point, b3Vec3 p_normal, floa
 	ctx->point = p_point;
 	ctx->normal = p_normal;
 	ctx->fraction = p_fraction;
+	ctx->face_index = input_face_index(p_shape_id, object, p_triangle);
 	return p_fraction;
+}
+
+struct MeshRayContext {
+	RayContext* ray;
+	Box3DShapedObjectImpl3D* object;
+	b3ShapeId shape;
+	b3Transform transform;
+	b3Vec3 origin;
+	b3Vec3 translation;
+};
+
+bool mesh_ray_triangle(b3Vec3 p_a, b3Vec3 p_b, b3Vec3 p_c, int p_triangle, void* p_context) {
+	auto& ctx = *static_cast<MeshRayContext*>(p_context);
+	const b3Vec3 edge1 = b3Sub(p_b, p_a);
+	const b3Vec3 edge2 = b3Sub(p_c, p_a);
+	const b3Vec3 cross = b3Cross(ctx.translation, edge2);
+	const float determinant = b3Dot(edge1, cross);
+	if (Math::abs(determinant) < 1e-8f) {
+		return true;
+	}
+	const b3Vec3 offset = b3Sub(ctx.origin, p_a);
+	const float u = b3Dot(offset, cross) / determinant;
+	const b3Vec3 q = b3Cross(offset, edge1);
+	const float v = b3Dot(ctx.translation, q) / determinant;
+	const float fraction = b3Dot(edge2, q) / determinant;
+	if (u < 0.0f || v < 0.0f || u + v > 1.0f || fraction < 0.0f || fraction > ctx.ray->fraction) {
+		return true;
+	}
+	b3Vec3 normal = b3Normalize(b3Cross(edge2, edge1));
+	if (b3Dot(normal, ctx.translation) > 0.0f) {
+		normal = b3Neg(normal);
+	}
+	ctx.ray->has_hit = true;
+	ctx.ray->shape_id = ctx.shape;
+	ctx.ray->fraction = fraction;
+	ctx.ray->point = b3MulAdd(ctx.ray->origin, fraction, ctx.ray->translation);
+	ctx.ray->normal = b3RotateVector(ctx.transform.q, normal);
+	ctx.ray->face_index = input_face_index(ctx.shape, ctx.object, p_triangle);
+	return true;
+}
+
+bool backface_ray_result_fcn(b3ShapeId p_shape_id, void* p_context) {
+	auto& ray = *static_cast<RayContext*>(p_context);
+	const b3ShapeType native_type = b3Shape_GetType(p_shape_id);
+	if (native_type != b3_meshShape && native_type != b3_heightShape) {
+		return true;
+	}
+	Box3DShapedObjectImpl3D* object = nullptr;
+	const b3BodyId body = b3Shape_GetBody(p_shape_id);
+	if (!should_report(b3Body_GetUserData(body), *ray.filter, object)) {
+		return true;
+	}
+	const int32_t slot = object->find_shape_index(p_shape_id);
+	if (slot < 0) {
+		return true;
+	}
+	const auto* shape = object->get_shape(slot);
+	if (shape->get_type() == PhysicsServer3D::SHAPE_CONCAVE_POLYGON) {
+		if (!static_cast<const Box3DConcavePolygonShapeImpl3D*>(shape)->is_backface_collision_enabled()) {
+			return true;
+		}
+	} else if (shape->get_type() != PhysicsServer3D::SHAPE_HEIGHTMAP) {
+		return true;
+	}
+	const b3Transform transform = b3Body_GetTransform(body);
+	MeshRayContext ctx{&ray, object, p_shape_id, transform,
+			b3InvTransformPoint(transform, ray.origin), b3InvRotateVector(transform.q, ray.translation)};
+	const b3Vec3 end = b3MulAdd(ctx.origin, ray.fraction, ctx.translation);
+	const b3AABB bounds{b3Min(ctx.origin, end), b3Max(ctx.origin, end)};
+	if (native_type == b3_meshShape) {
+		const b3Mesh mesh = b3Shape_GetMesh(p_shape_id);
+		b3QueryMesh(&mesh, bounds, mesh_ray_triangle, &ctx);
+	} else {
+		b3QueryHeightField(b3Shape_GetHeightField(p_shape_id), bounds, mesh_ray_triangle, &ctx);
+	}
+	return true;
 }
 
 struct MotionCollisionData {
@@ -396,8 +490,15 @@ bool Box3DPhysicsDirectSpaceState3D::_intersect_ray(
 
 	const b3Vec3 origin = godot_to_b3(p_from);
 	const b3Vec3 translation = godot_to_b3(p_to - p_from);
+	context.origin = origin;
+	context.translation = translation;
 
 	b3World_CastRay(space->get_world_id(), origin, translation, filter.filter, cast_result_fcn, &context);
+	if (p_hit_back_faces) {
+		const b3Vec3 end = b3MulAdd(origin, context.fraction, translation);
+		b3World_OverlapAABB(space->get_world_id(), {b3Min(origin, end), b3Max(origin, end)},
+				filter.filter, backface_ray_result_fcn, &context);
+	}
 
 	if (!context.has_hit) {
 		return false;
@@ -415,6 +516,7 @@ bool Box3DPhysicsDirectSpaceState3D::_intersect_ray(
 	p_result->collider_id = object->get_instance_id();
 	p_result->collider = engine_object(p_result->collider_id);
 	p_result->shape = object->find_shape_index(context.shape_id);
+	p_result->face_index = context.face_index;
 	return true;
 }
 

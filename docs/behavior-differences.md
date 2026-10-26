@@ -34,6 +34,13 @@ If you need a body to be detected by an area, give it a convex shape. A trimesh 
 
 `intersect_shape()` and `cast_motion()` honor the supplied margin. Cast safe fractions back off by native linear slop and can differ from unsafe fractions.
 
+## Direct ray queries
+
+`intersect_ray()` honors `hit_from_inside`; enabled inside hits report the ray origin and a zero normal.
+Concave ray hits return the original input triangle index, even though Box3D reorders its mesh triangles.
+Backface ray hits require both the query's `hit_back_faces` flag and the concave resource's `backface_collision` setting; heightmaps use the query flag.
+These query flags do not make simulated concave contacts or character recovery two-sided.
+
 ## Shape queries need a convex query shape
 
 `intersect_shape`, `cast_motion`, `collide_shape`, `rest_info`, and `body_test_motion` build a point-cloud proxy of the shape being queried *with*. Trimesh, heightmap, and world-boundary shapes have no finite point cloud.

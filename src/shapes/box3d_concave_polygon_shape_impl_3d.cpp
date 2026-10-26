@@ -14,7 +14,7 @@ Box3DConcavePolygonShapeImpl3D::~Box3DConcavePolygonShapeImpl3D() {
 Variant Box3DConcavePolygonShapeImpl3D::get_data() const {
 	Dictionary data;
 	data["faces"] = faces;
-	data["backface_collision"] = false;
+	data["backface_collision"] = backface_collision;
 	return data;
 }
 
@@ -23,9 +23,11 @@ void Box3DConcavePolygonShapeImpl3D::set_data(const Variant& p_data) {
 		const Dictionary data = p_data;
 		ERR_FAIL_COND(!data.has("faces"));
 		faces = data["faces"];
+		backface_collision = data.get("backface_collision", false);
 	} else {
 		ERR_FAIL_COND(p_data.get_type() != Variant::PACKED_VECTOR3_ARRAY);
 		faces = p_data;
+		backface_collision = false;
 	}
 	_rebuild_mesh();
 }
