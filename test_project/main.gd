@@ -52,6 +52,9 @@ func _populate_backends() -> void:
 			_backend_picker.select(i)
 
 	_backend_note.text = "Switching relaunches: the physics server is built once at startup."
+	if OS.has_feature("android"):
+		_backend_picker.disabled = true
+		_backend_note.text = "Android uses the physics backend selected before export."
 
 
 # The physics server is created once at startup, so switching means relaunching.

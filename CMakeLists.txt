@@ -19,6 +19,17 @@ set(BOX3D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(box3d)
 
+if(ANDROID)
+	if(ANDROID_ABI STREQUAL "arm64-v8a")
+		set(GODOT_BOX3D_ANDROID_ARCH "arm64")
+	elseif(ANDROID_ABI STREQUAL "x86_64")
+		set(GODOT_BOX3D_ANDROID_ARCH "x86_64")
+	else()
+		message(FATAL_ERROR "Android builds support arm64-v8a and x86_64 only")
+	endif()
+	set_target_properties(box3d PROPERTIES POSITION_INDEPENDENT_CODE ON)
+endif()
+
 # --- godot-cpp (fetched via ExternalProject_Add) ---
 include(cmake/GodotBox3DExternalGodotCpp.cmake)
 
@@ -68,24 +79,34 @@ set_target_properties(godot-box3d PROPERTIES
 
 # Exported godot-cpp statics become STB_GNU_UNIQUE and get merged with other extensions'
 # copies despite RTLD_DEEPBIND, so only the entry symbol may leave the library.
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR ANDROID)
 	target_link_options(godot-box3d PRIVATE -Wl,--exclude-libs,ALL)
+endif()
+
+set(GODOT_BOX3D_OUTPUT_SUBDIR "")
+if(ANDROID)
+	set(GODOT_BOX3D_OUTPUT_SUBDIR "/android")
+	set_target_properties(godot-box3d PROPERTIES
+		OUTPUT_NAME "godot-box3d.android.$<LOWER_CASE:$<CONFIG>>.${GODOT_BOX3D_ANDROID_ARCH}"
+	)
+	# Keep shared libraries usable on both 4 KB and 16 KB Android devices.
+	target_link_options(godot-box3d PRIVATE -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384)
 endif()
 
 # Place the built extension where the .gdextension template expects it during local
 # testing. The $<1:...> wrapper stops multi-config generators (Visual Studio, Xcode)
 # from appending a Debug/Release subdirectory the .gdextension wouldn't look in.
 set_target_properties(godot-box3d PROPERTIES
-	LIBRARY_OUTPUT_DIRECTORY "$<1:${CMAKE_CURRENT_SOURCE_DIR}/bin>"
-	RUNTIME_OUTPUT_DIRECTORY "$<1:${CMAKE_CURRENT_SOURCE_DIR}/bin>"
+	LIBRARY_OUTPUT_DIRECTORY "$<1:${CMAKE_CURRENT_SOURCE_DIR}/bin${GODOT_BOX3D_OUTPUT_SUBDIR}>"
+	RUNTIME_OUTPUT_DIRECTORY "$<1:${CMAKE_CURRENT_SOURCE_DIR}/bin${GODOT_BOX3D_OUTPUT_SUBDIR}>"
 )
 
 # The test project loads its own gitignored copy under addons/, not bin/; keep it in sync
 # so headless tests never run against a stale binary.
 add_custom_command(TARGET godot-box3d POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E make_directory
-		"${CMAKE_CURRENT_SOURCE_DIR}/test_project/addons/godot-box3d/bin"
+		"${CMAKE_CURRENT_SOURCE_DIR}/test_project/addons/godot-box3d/bin${GODOT_BOX3D_OUTPUT_SUBDIR}"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different
 		"$<TARGET_FILE:godot-box3d>"
-		"${CMAKE_CURRENT_SOURCE_DIR}/test_project/addons/godot-box3d/bin/$<TARGET_FILE_NAME:godot-box3d>"
+		"${CMAKE_CURRENT_SOURCE_DIR}/test_project/addons/godot-box3d/bin${GODOT_BOX3D_OUTPUT_SUBDIR}/$<TARGET_FILE_NAME:godot-box3d>"
 )
