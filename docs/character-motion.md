@@ -18,6 +18,8 @@ A body trapped in a gap smaller than itself cannot satisfy both surfaces; recove
 Motion queries are read-only: they do not move the character or collider, apply forces, or wake a rigid body.
 Per-call body/object exclusions apply to both recovery and casting.
 `recovery_as_collision=false` suppresses recovery-only collision reporting, not the recovery displacement itself.
+Recovery contacts are checked again at the end of the requested motion, allowing native contact slop.
+A floor left behind by a jump no longer remains a reported supporting contact, so characters detach immediately and inherit moving or rotating platform velocity on that movement.
 
 The motion cast reports a hit only when the shapes would actually touch, as GodotPhysics3D and Jolt do, not when they come within Box3D's linear slop.
 Motion that starts a few millimeters from a surface still sees it, and sliding flush across the seam between coplanar shapes does not snag on the next shape's edge.
