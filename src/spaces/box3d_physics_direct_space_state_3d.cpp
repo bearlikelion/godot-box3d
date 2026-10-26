@@ -840,8 +840,33 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 		}
 	}
 	if (recovered && p_recovery_as_collision) {
+		Transform3D end_transform = recovered_transform;
+		end_transform.origin += p_motion * unsafe_fraction;
 		for (const MotionCollisionData& collision : recovery_collisions) {
-			append_motion_collision(reported_collisions, collision);
+			// Keep recovery displacement, but only report contacts still supporting the final pose.
+			if (p_body.has_shape_id(collision.local_shape) && collision.object->has_shape_id(collision.collider_shape)) {
+				LocalVector<Box3DRecoveryContact> end_contacts;
+				box3d_recovery_contacts(p_body.get_shape_id(collision.local_shape), godot_to_b3_transform(end_transform),
+						collision.object->get_shape_id(collision.collider_shape), (float)margin + B3_LINEAR_SLOP + 1e-4f, end_contacts);
+				for (const Box3DRecoveryContact& contact : end_contacts) {
+					if (b3_to_godot(contact.normal).dot(collision.normal) > 0.99f) {
+						append_motion_collision(reported_collisions, collision);
+						break;
+					}
+				}
+			} else if (p_body.get_shape(collision.local_shape)->get_type() == PhysicsServer3D::SHAPE_SEPARATION_RAY) {
+				const auto* ray = static_cast<const Box3DSeparationRayShapeImpl3D*>(p_body.get_shape(collision.local_shape));
+				const Transform3D ray_transform = end_transform * p_body.get_shape_transform(collision.local_shape);
+				const Vector3 ray_vector = ray_transform.basis.get_column(2) * ray->get_length();
+				RayContext ray_context;
+				ray_context.filter = &filter;
+				b3World_CastRay(space->get_world_id(), godot_to_b3(ray_transform.origin),
+						godot_to_b3(ray_vector + ray_vector.normalized() * margin), filter.filter, cast_result_fcn, &ray_context);
+				if (ray_context.has_hit && ray_context.fraction < 1.0f &&
+						B3_ID_EQUALS(ray_context.shape_id, collision.object->get_shape_id(collision.collider_shape))) {
+					append_motion_collision(reported_collisions, collision);
+				}
+			}
 		}
 	}
 
@@ -866,5 +891,5 @@ bool Box3DPhysicsDirectSpaceState3D::test_body_motion(
 	}
 	p_result->collision_count = collision_limit;
 
-	return found_collision || (recovered && p_recovery_as_collision);
+	return found_collision || !reported_collisions.is_empty();
 }
