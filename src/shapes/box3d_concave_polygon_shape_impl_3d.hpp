@@ -28,6 +28,7 @@ public:
 	const b3MeshData* get_mesh() const { return mesh; }
 
 	const PackedVector3Array& get_faces() const { return faces; }
+	bool is_backface_collision_enabled() const { return backface_collision; }
 
 	// Box3D meshes carry no transform, so an offset instance needs its own baked copy.
 	static b3MeshData* build_mesh(const PackedVector3Array& p_faces, const Transform3D& p_transform);
@@ -38,4 +39,5 @@ private:
 	PackedVector3Array faces;
 	b3MeshData* mesh = nullptr;
 	AABB aabb;
+	bool backface_collision = false;
 };
