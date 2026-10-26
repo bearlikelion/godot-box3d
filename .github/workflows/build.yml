@@ -105,8 +105,62 @@ jobs:
           name: godot-box3d-${{ runner.os }}
           path: bin/
 
+  android:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, x86_64]
+        build-type: [Debug, Release]
+    env:
+      ANDROID_NDK_VERSION: 28.1.13356709
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - uses: android-actions/setup-android@v4
+
+      - name: Install Android build dependencies
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
+          sdkmanager "ndk;${ANDROID_NDK_VERSION}"
+
+      - name: Configure Android
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=android-24 \
+            -DANDROID_STL=c++_static -DCMAKE_BUILD_TYPE=${{ matrix.build-type }}
+
+      - name: Build Android
+        run: cmake --build build --parallel 4
+
+      - name: Check Android entry point and 16 KB ELF alignment
+        shell: bash
+        run: |
+          llvm_bin="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          for library in bin/android/*.so; do
+            "$llvm_bin/llvm-nm" --dynamic --defined-only "$library" | awk '$3 == "godot_box3d_main" { found = 1 } END { exit !found }'
+            "$llvm_bin/llvm-readelf" --program-headers --wide "$library"
+            while read -r alignment; do
+              (( alignment >= 16384 ))
+            done < <("$llvm_bin/llvm-readelf" --program-headers --wide "$library" | awk '$1 == "LOAD" { print $NF }')
+          done
+
+      - name: Upload Android library
+        uses: actions/upload-artifact@v7
+        with:
+          name: godot-box3d-android-${{ matrix.abi }}-${{ matrix.build-type }}
+          path: bin/
+          if-no-files-found: error
+
   release:
-    needs: build
+    needs: [build, android]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -130,6 +184,7 @@ jobs:
           cp LICENSE addon/addons/godot-box3d/
           cp bin/libgodot-box3d.so bin/godot-box3d.dll bin/libgodot-box3d.dylib \
             addon/addons/godot-box3d/bin/
+          cp -r bin/android addon/addons/godot-box3d/bin/
           cd addon && zip -r ../godot-box3d-${{ github.ref_name }}.zip addons
 
       - name: Release
