@@ -40,6 +40,10 @@ If you need a body to be detected by an area, give it a convex shape. A trimesh 
 
 Passing one of those as the query shape returns no results. They work normally as targets in the world.
 
+## Viewport picking and scripted rays
+
+Viewport physics picking honors `CollisionObject3D.input_ray_pickable` for bodies and areas, including changes at runtime. Unpickable objects do not block picking an eligible object behind them. This flag does not filter ordinary scripted `intersect_ray()` queries or change physical collisions.
+
 ## Friction and restitution combine differently
 
 Box3D uses `sqrt(a * b)` for friction and `max(a, b)` for restitution. Godot's built-in physics uses `min(a, b)` and a clamped sum.
