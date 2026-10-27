@@ -403,7 +403,9 @@ void Box3DPhysicsServer3D::_area_set_monitorable(const RID& p_area, bool p_monit
 }
 
 void Box3DPhysicsServer3D::_area_set_ray_pickable(const RID& p_area, bool p_enable) {
-	// Not implemented in v1 (no editor picking support).
+	Box3DAreaImpl3D* area = area_owner.get_or_null(p_area);
+	ERR_FAIL_NULL(area);
+	area->set_ray_pickable(p_enable);
 }
 
 void Box3DPhysicsServer3D::_area_set_monitor_callback(const RID& p_area, const Callable& p_callback) {
@@ -899,7 +901,9 @@ void Box3DPhysicsServer3D::_body_set_force_integration_callback(const RID& p_bod
 }
 
 void Box3DPhysicsServer3D::_body_set_ray_pickable(const RID& p_body, bool p_enable) {
-	// Not implemented in v1 (no editor picking support).
+	Box3DBodyImpl3D* body = body_owner.get_or_null(p_body);
+	ERR_FAIL_NULL(body);
+	body->set_ray_pickable(p_enable);
 }
 
 bool Box3DPhysicsServer3D::_body_test_motion(

@@ -22,6 +22,7 @@ struct Box3DQueryFilter3D {
 	const PhysicsServer3DExtension* motion_server = nullptr;
 	bool collide_with_bodies = true;
 	bool collide_with_areas = false;
+	bool pick_ray = false;
 
 	Box3DQueryFilter3D() = default;
 

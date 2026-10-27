@@ -41,6 +41,9 @@ bool should_report(void* p_user_data, const Box3DQueryFilter3D& p_filter, Box3DS
 	if (p_filter.should_exclude(object->get_rid(), object->get_instance_id())) {
 		return false;
 	}
+	if (p_filter.pick_ray && !object->is_ray_pickable()) {
+		return false;
+	}
 	r_object = object;
 	return true;
 }
@@ -389,6 +392,7 @@ bool Box3DPhysicsDirectSpaceState3D::_intersect_ray(
 
 	Box3DQueryFilter3D filter(p_collision_mask, p_collide_with_bodies, p_collide_with_areas);
 	filter.direct_state = this;
+	filter.pick_ray = p_pick_ray;
 
 	RayContext context;
 	context.filter = &filter;
