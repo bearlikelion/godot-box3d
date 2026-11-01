@@ -149,17 +149,21 @@ void advance_to_contact(b3ShapeProxy p_target, b3ShapeProxy p_query, b3Transform
 		if (output.distance <= 0.0f || closing <= FLT_EPSILON) {
 			return;
 		}
-		if (margin_fraction < 0.0f && output.distance <= 1.25f * p_margin) {
+		// Large hulls can leave tangential error in the GJK witnesses. Their
+		// Euclidean distance then overstates the gap and advances through contact.
+		// Use the separation along GJK's normal, with radii already in the witnesses.
+		const float separation = b3Dot(b3Sub(output.pointB, output.pointA), output.normal);
+		if (margin_fraction < 0.0f && separation <= 1.25f * p_margin) {
 			margin_fraction = fraction;
 		}
-		if (output.distance <= touch) {
+		if (separation <= touch) {
 			// Godot drops sub-margin recovery, so travel past the margin from a recovered start would sink.
 			if (r_best.fraction < 0.0f || margin_fraction < r_best.fraction) {
 				r_best = {margin_fraction, output.normal, output.pointA};
 			}
 			return;
 		}
-		fraction += (output.distance - (margin_fraction < 0.0f ? p_margin : 0.5f * touch)) / closing;
+		fraction += (separation - (margin_fraction < 0.0f ? p_margin : 0.5f * touch)) / closing;
 	}
 }
 
