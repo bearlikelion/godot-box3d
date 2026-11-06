@@ -149,9 +149,7 @@ void advance_to_contact(b3ShapeProxy p_target, b3ShapeProxy p_query, b3Transform
 		if (output.distance <= 0.0f || closing <= FLT_EPSILON) {
 			return;
 		}
-		// Large hulls can leave tangential error in the GJK witnesses. Their
-		// Euclidean distance then overstates the gap and advances through contact.
-		// Use the separation along GJK's normal, with radii already in the witnesses.
+		// Project onto the normal to exclude tangential GJK witness error on large hulls.
 		const float separation = b3Dot(b3Sub(output.pointB, output.pointA), output.normal);
 		if (margin_fraction < 0.0f && separation <= 1.25f * p_margin) {
 			margin_fraction = fraction;
