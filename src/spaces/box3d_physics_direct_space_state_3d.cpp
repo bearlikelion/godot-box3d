@@ -140,6 +140,7 @@ b3AABB proxy_bounds(const b3ShapeProxy& p_proxy, float p_margin) {
 
 struct RayContext {
 	const Box3DQueryFilter3D* filter = nullptr;
+	bool ignore_initial_overlap = false;
 	bool hit_from_inside = false;
 	bool has_hit = false;
 	b3ShapeId shape_id = b3_nullShapeId;
@@ -154,6 +155,9 @@ float cast_result_fcn(b3ShapeId p_shape_id, b3Pos p_point, b3Vec3 p_normal, floa
 	const b3BodyId body_id = b3Shape_GetBody(p_shape_id);
 	Box3DShapedObjectImpl3D* object = nullptr;
 	if (!should_report(b3Body_GetUserData(body_id), *ctx->filter, object)) {
+		return -1.0f;
+	}
+	if (ctx->ignore_initial_overlap && p_fraction == 0.0f && b3LengthSquared(p_normal) < 1e-10f) {
 		return -1.0f;
 	}
 
@@ -507,13 +511,15 @@ bool Box3DPhysicsDirectSpaceState3D::_cast_motion(
 
 	RayContext context;
 	context.filter = &filter;
+	// Public shape casts ignore initial overlaps; internal recovery casts retain them.
+	context.ignore_initial_overlap = true;
 
 	b3World_CastShape(space->get_world_id(), b3Vec3_zero, &shape_proxy.get_proxy(), godot_to_b3(p_motion), filter.filter, cast_result_fcn, &context);
 
 	if (!context.has_hit) {
 		*p_closest_safe = 1.0;
 		*p_closest_unsafe = 1.0;
-		return false;
+		return true;
 	}
 
 	const float motion_length = (float)p_motion.length();
