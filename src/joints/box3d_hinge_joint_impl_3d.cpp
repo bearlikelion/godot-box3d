@@ -1,5 +1,8 @@
 #include "box3d_hinge_joint_impl_3d.hpp"
 
+#include "../objects/box3d_body_impl_3d.hpp"
+#include "../spaces/box3d_space_3d.hpp"
+
 #include <box3d/box3d.h>
 
 Box3DHingeJointImpl3D::Box3DHingeJointImpl3D(
@@ -21,9 +24,10 @@ b3JointId Box3DHingeJointImpl3D::_create_joint_id(b3WorldId p_world_id, b3BodyId
 	def.upperAngle = (float)limit_upper;
 	def.enableMotor = enable_motor;
 	def.motorSpeed = (float)motor_target_velocity;
-	def.maxMotorTorque = (float)motor_max_impulse;
+	def.maxMotorTorque = 0.0f;
 
 	const b3JointId new_joint_id = b3CreateRevoluteJoint(p_world_id, &def);
+	get_body_a()->get_space()->set_hinge_motor_impulse(new_joint_id, (float)motor_max_impulse);
 	return new_joint_id;
 }
 
@@ -81,6 +85,7 @@ void Box3DHingeJointImpl3D::set_param(Param p_param, real_t p_value) {
 			_apply_motor();
 			break;
 		case PhysicsServer3D::HINGE_JOINT_MOTOR_MAX_IMPULSE:
+			ERR_FAIL_COND(!Math::is_finite(p_value) || p_value < 0.0f);
 			motor_max_impulse = p_value;
 			_apply_motor();
 			break;
@@ -128,6 +133,6 @@ void Box3DHingeJointImpl3D::_apply_limit() {
 void Box3DHingeJointImpl3D::_apply_motor() {
 	if (has_joint_id()) {
 		b3RevoluteJoint_SetMotorSpeed(get_joint_id(), (float)motor_target_velocity);
-		b3RevoluteJoint_SetMaxMotorTorque(get_joint_id(), (float)motor_max_impulse);
+		get_body_a()->get_space()->set_hinge_motor_impulse(get_joint_id(), (float)motor_max_impulse);
 	}
 }
