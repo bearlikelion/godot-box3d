@@ -2,6 +2,7 @@
 #include "../spaces/box3d_space_3d.hpp"
 
 #include "../misc/type_conversions.hpp"
+#include "../misc/box3d_material.hpp"
 #include "box3d_physics_direct_body_state_3d.hpp"
 
 #include <box3d/box3d.h>
@@ -171,6 +172,27 @@ void Box3DBodyImpl3D::set_linear_damping(real_t p_damping) {
 	linear_damping = p_damping;
 	if (has_body_id()) {
 		b3Body_SetLinearDamping(body_id, omit_force_integration ? 0.0f : (float)p_damping);
+	}
+}
+
+void Box3DBodyImpl3D::set_friction(real_t p_friction) {
+	ERR_FAIL_COND(!Math::is_finite(p_friction));
+	friction = p_friction;
+	_update_material();
+}
+
+void Box3DBodyImpl3D::set_bounce(real_t p_bounce) {
+	ERR_FAIL_COND(!Math::is_finite(p_bounce));
+	bounce = p_bounce;
+	_update_material();
+}
+
+void Box3DBodyImpl3D::_update_material() {
+	const b3SurfaceMaterial material = box3d_surface_material((float)friction, (float)bounce);
+	for (int32_t i = 0; i < get_shape_count(); i++) {
+		if (has_shape_id(i)) {
+			b3Shape_SetSurfaceMaterial(get_shape_id(i), material);
+		}
 	}
 }
 

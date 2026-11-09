@@ -81,11 +81,11 @@ public:
 
 	real_t get_bounce() const { return bounce; }
 
-	void set_bounce(real_t p_bounce) { bounce = p_bounce; }
+	void set_bounce(real_t p_bounce);
 
 	real_t get_friction() const { return friction; }
 
-	void set_friction(real_t p_friction) { friction = p_friction; }
+	void set_friction(real_t p_friction);
 
 	real_t get_angular_damping() const { return angular_damping; }
 
@@ -204,6 +204,8 @@ protected:
 	void _shapes_changed() override { _refresh_mass_data(); }
 
 private:
+	void _update_material();
+
 	void _update_motion_locks();
 
 	void _sync_force_integration_settings();
