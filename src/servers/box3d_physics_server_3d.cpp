@@ -1030,8 +1030,9 @@ void Box3DPhysicsServer3D::_joint_make_hinge(const RID& p_joint, const RID& p_bo
 
 	Box3DBodyImpl3D* body_a = body_owner.get_or_null(p_body_a);
 	Box3DBodyImpl3D* body_b = body_owner.get_or_null(p_body_b);
-	ERR_FAIL_NULL(body_a);
-	ERR_FAIL_NULL(body_b);
+	if (body_a == nullptr || body_b == nullptr) {
+		return;
+	}
 
 	// Box3D's revolute joint rotates about the LOCAL Z axis of the joint frames; Godot's
 	// HingeJoint3D convention uses local Z as the hinge axis too (the incoming p_hinge_a/b
@@ -1048,8 +1049,9 @@ void Box3DPhysicsServer3D::_joint_make_hinge_simple(const RID& p_joint, const RI
 
 	Box3DBodyImpl3D* body_a = body_owner.get_or_null(p_body_a);
 	Box3DBodyImpl3D* body_b = body_owner.get_or_null(p_body_b);
-	ERR_FAIL_NULL(body_a);
-	ERR_FAIL_NULL(body_b);
+	if (body_a == nullptr || body_b == nullptr) {
+		return;
+	}
 
 	// Build a joint-frame basis that maps local Z to the given hinge axis (shortest-arc
 	// rotation from +Z), since Box3D's revolute joint always rotates about local Z.
@@ -1067,7 +1069,12 @@ void Box3DPhysicsServer3D::_joint_make_hinge_simple(const RID& p_joint, const RI
 }
 
 void Box3DPhysicsServer3D::_hinge_joint_set_param(const RID& p_joint, PhysicsServer3D::HingeJointParam p_param, double p_value) {
-	auto* joint = dynamic_cast<Box3DHingeJointImpl3D*>(joint_owner.get_or_null(p_joint));
+	ERR_FAIL_COND(!joint_owner.owns(p_joint));
+	Box3DJointImpl3D* base_joint = joint_owner.get_or_null(p_joint);
+	if (base_joint == nullptr) {
+		return;
+	}
+	auto* joint = dynamic_cast<Box3DHingeJointImpl3D*>(base_joint);
 	ERR_FAIL_NULL(joint);
 	joint->set_param(p_param, p_value);
 }
@@ -1079,7 +1086,12 @@ double Box3DPhysicsServer3D::_hinge_joint_get_param(const RID& p_joint, PhysicsS
 }
 
 void Box3DPhysicsServer3D::_hinge_joint_set_flag(const RID& p_joint, PhysicsServer3D::HingeJointFlag p_flag, bool p_enabled) {
-	auto* joint = dynamic_cast<Box3DHingeJointImpl3D*>(joint_owner.get_or_null(p_joint));
+	ERR_FAIL_COND(!joint_owner.owns(p_joint));
+	Box3DJointImpl3D* base_joint = joint_owner.get_or_null(p_joint);
+	if (base_joint == nullptr) {
+		return;
+	}
+	auto* joint = dynamic_cast<Box3DHingeJointImpl3D*>(base_joint);
 	ERR_FAIL_NULL(joint);
 	joint->set_flag(p_flag, p_enabled);
 }
@@ -1095,8 +1107,9 @@ void Box3DPhysicsServer3D::_joint_make_slider(const RID& p_joint, const RID& p_b
 
 	Box3DBodyImpl3D* body_a = body_owner.get_or_null(p_body_a);
 	Box3DBodyImpl3D* body_b = body_owner.get_or_null(p_body_b);
-	ERR_FAIL_NULL(body_a);
-	ERR_FAIL_NULL(body_b);
+	if (body_a == nullptr || body_b == nullptr) {
+		return;
+	}
 
 	// Box3D's prismatic joint slides along the LOCAL X axis of local frame A, matching
 	// Godot's SliderJoint3D convention (which also slides along local X), so no axis
@@ -1108,7 +1121,12 @@ void Box3DPhysicsServer3D::_joint_make_slider(const RID& p_joint, const RID& p_b
 }
 
 void Box3DPhysicsServer3D::_slider_joint_set_param(const RID& p_joint, PhysicsServer3D::SliderJointParam p_param, double p_value) {
-	auto* joint = dynamic_cast<Box3DSliderJointImpl3D*>(joint_owner.get_or_null(p_joint));
+	ERR_FAIL_COND(!joint_owner.owns(p_joint));
+	Box3DJointImpl3D* base_joint = joint_owner.get_or_null(p_joint);
+	if (base_joint == nullptr) {
+		return;
+	}
+	auto* joint = dynamic_cast<Box3DSliderJointImpl3D*>(base_joint);
 	ERR_FAIL_NULL(joint);
 	joint->set_param(p_param, p_value);
 }
