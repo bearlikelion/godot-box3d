@@ -31,7 +31,7 @@ public:
 
 	b3JointId get_joint_id() const { return joint_id; }
 
-	bool has_joint_id() const { return B3_IS_NON_NULL(joint_id); }
+	bool has_joint_id() const;
 
 	bool is_collision_disabled() const { return collision_disabled; }
 
@@ -56,6 +56,8 @@ protected:
 	virtual b3JointId _create_joint_id(b3WorldId p_world_id, b3BodyId p_body_a, b3BodyId p_body_b, b3Transform p_local_frame_a, b3Transform p_local_frame_b) = 0;
 
 	void _destroy_joint_id();
+
+	void _wake_bodies();
 
 	Transform3D local_frame_a;
 	Transform3D local_frame_b;

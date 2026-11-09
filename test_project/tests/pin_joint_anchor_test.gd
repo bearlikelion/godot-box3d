@@ -56,6 +56,7 @@ func _run() -> void:
 	_check(settled_x > 0.5, "moving anchor A drags the hanging body toward it")
 
 	# Move the anchor to the opposite side; the body must follow back across.
+	ball.sleeping = true
 	PhysicsServer3D.pin_joint_set_local_a(joint_rid, Vector3(-1, 0, 0))
 
 	for frame in 240:

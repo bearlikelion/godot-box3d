@@ -51,6 +51,9 @@ real_t Box3DHingeJointImpl3D::get_param(Param p_param) const {
 }
 
 void Box3DHingeJointImpl3D::set_param(Param p_param, real_t p_value) {
+	if (get_param(p_param) == p_value) {
+		return;
+	}
 	switch (p_param) {
 		case PhysicsServer3D::HINGE_JOINT_BIAS:
 			bias = p_value;
@@ -101,17 +104,22 @@ bool Box3DHingeJointImpl3D::get_flag(Flag p_flag) const {
 }
 
 void Box3DHingeJointImpl3D::set_flag(Flag p_flag, bool p_enabled) {
+	if (get_flag(p_flag) == p_enabled) {
+		return;
+	}
 	switch (p_flag) {
 		case PhysicsServer3D::HINGE_JOINT_FLAG_USE_LIMIT:
 			use_limit = p_enabled;
 			if (has_joint_id()) {
 				b3RevoluteJoint_EnableLimit(get_joint_id(), use_limit);
+				_wake_bodies();
 			}
 			break;
 		case PhysicsServer3D::HINGE_JOINT_FLAG_ENABLE_MOTOR:
 			enable_motor = p_enabled;
 			if (has_joint_id()) {
 				b3RevoluteJoint_EnableMotor(get_joint_id(), enable_motor);
+				_wake_bodies();
 			}
 			break;
 		default:
@@ -122,6 +130,7 @@ void Box3DHingeJointImpl3D::set_flag(Flag p_flag, bool p_enabled) {
 void Box3DHingeJointImpl3D::_apply_limit() {
 	if (has_joint_id()) {
 		b3RevoluteJoint_SetLimits(get_joint_id(), (float)limit_lower, (float)limit_upper);
+		_wake_bodies();
 	}
 }
 
@@ -129,5 +138,6 @@ void Box3DHingeJointImpl3D::_apply_motor() {
 	if (has_joint_id()) {
 		b3RevoluteJoint_SetMotorSpeed(get_joint_id(), (float)motor_target_velocity);
 		b3RevoluteJoint_SetMaxMotorTorque(get_joint_id(), (float)motor_max_impulse);
+		_wake_bodies();
 	}
 }

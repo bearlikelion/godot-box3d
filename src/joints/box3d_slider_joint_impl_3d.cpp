@@ -36,6 +36,9 @@ real_t Box3DSliderJointImpl3D::get_param(Param p_param) const {
 }
 
 void Box3DSliderJointImpl3D::set_param(Param p_param, real_t p_value) {
+	if (get_param(p_param) == p_value) {
+		return;
+	}
 	switch (p_param) {
 		case PhysicsServer3D::SLIDER_JOINT_LINEAR_LIMIT_UPPER:
 			limit_upper = p_value;
@@ -55,5 +58,6 @@ void Box3DSliderJointImpl3D::set_param(Param p_param, real_t p_value) {
 void Box3DSliderJointImpl3D::_apply_limit() {
 	if (has_joint_id()) {
 		b3PrismaticJoint_SetLimits(get_joint_id(), (float)limit_lower, (float)limit_upper);
+		_wake_bodies();
 	}
 }

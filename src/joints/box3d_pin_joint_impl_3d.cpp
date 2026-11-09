@@ -36,17 +36,22 @@ real_t Box3DPinJointImpl3D::get_param(Param p_param) const {
 }
 
 void Box3DPinJointImpl3D::set_param(Param p_param, real_t p_value) {
+	if (get_param(p_param) == p_value) {
+		return;
+	}
 	switch (p_param) {
 		case PhysicsServer3D::PIN_JOINT_DAMPING:
 			damping = p_value;
 			if (has_joint_id()) {
 				b3SphericalJoint_SetSpringDampingRatio(get_joint_id(), (float)damping);
+				_wake_bodies();
 			}
 			break;
 		case PhysicsServer3D::PIN_JOINT_BIAS:
 			bias = p_value;
 			if (has_joint_id()) {
 				b3SphericalJoint_SetSpringHertz(get_joint_id(), (float)bias * 30.0f);
+				_wake_bodies();
 			}
 			break;
 		case PhysicsServer3D::PIN_JOINT_IMPULSE_CLAMP:
