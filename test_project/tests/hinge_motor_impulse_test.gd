@@ -108,9 +108,14 @@ func _sample(state: PhysicsDirectBodyState3D) -> void:
 func _measure(expected: float, label: String, expected_step: float = 0.0) -> void:
 	samples.clear()
 	recording = true
-	while samples.size() < 8:
+	for frame in 40:
 		await physics_frame
+		if samples.size() >= 8:
+			break
 	recording = false
+	if samples.size() < 8:
+		_check(false, label + " did not receive enough physics samples")
+		return
 	var ok: bool = true
 	if expected_step > 0.0:
 		ok = absf(samples[-1].x - expected_step) < 0.00001
