@@ -1,5 +1,7 @@
 #include "box3d_shaped_object_impl_3d.hpp"
 
+#include "../misc/box3d_material.hpp"
+
 #include "../misc/type_conversions.hpp"
 #include "../shapes/box3d_box_shape_impl_3d.hpp"
 #include "../shapes/box3d_capsule_shape_impl_3d.hpp"
@@ -46,9 +48,7 @@ b3ShapeId create_box3d_shape(
 	def.enableSensorEvents = p_is_sensor || !is_concave;
 	def.enableContactEvents = !p_is_sensor;
 	def.density = 1.0f;
-	def.baseMaterial = b3DefaultSurfaceMaterial();
-	def.baseMaterial.friction = p_friction;
-	def.baseMaterial.restitution = p_restitution;
+	def.baseMaterial = box3d_surface_material(p_friction, p_restitution);
 
 	const Transform3D& local = p_instance.get_transform();
 

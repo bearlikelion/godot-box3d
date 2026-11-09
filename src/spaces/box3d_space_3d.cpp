@@ -1,6 +1,7 @@
 #include "box3d_space_3d.hpp"
 
 #include "../misc/box3d_globals.hpp"
+#include "../misc/box3d_material.hpp"
 #include "../misc/type_conversions.hpp"
 #include "../objects/box3d_area_impl_3d.hpp"
 #include "../objects/box3d_body_impl_3d.hpp"
@@ -17,6 +18,8 @@ constexpr int SUB_STEP_COUNT = 4;
 
 Box3DSpace3D::Box3DSpace3D() {
 	b3WorldDef def = b3DefaultWorldDef();
+	def.frictionCallback = box3d_mix_friction;
+	def.restitutionCallback = box3d_mix_restitution;
 	// With no task callbacks set, any count above 1 engages Box3D's internal scheduler.
 	def.workerCount = box3d_worker_count();
 	world_id = b3CreateWorld(&def);
