@@ -40,11 +40,21 @@ If you need a body to be detected by an area, give it a convex shape. A trimesh 
 
 Passing one of those as the query shape returns no results. They work normally as targets in the world.
 
-## Friction and restitution combine differently
+## Physics materials
 
-Box3D uses `sqrt(a * b)` for friction and `max(a, b)` for restitution. Godot's built-in physics uses `min(a, b)` and a clamped sum.
+The adapter supplies Box3D mixing callbacks matching Godot's `PhysicsMaterial`
+contract. Ordinary friction takes the lower coefficient; a rough material takes
+precedence, and two rough materials take the higher coefficient. Restitution is
+the sum clamped to 0..1, with absorbent materials subtracting their bounce.
+The callbacks use only native coefficient/flag values and can run on physics workers.
 
-Materials tuned against Godot's defaults will not feel the same, so a port usually needs its friction values revisited.
+Changing a material resource or replacing an override updates existing fixtures,
+without rebuilding their geometry, mass or contact-monitor ownership. Future
+attachments and re-enabled shapes use the same current material.
+
+This changes older addon behavior, which used Box3D's geometric-mean friction and
+maximum restitution. Revisit material tuning made specifically for those rules.
+Matching these combine rules does not promise identical trajectories across solvers.
 
 ## Ignored joint parameters
 
