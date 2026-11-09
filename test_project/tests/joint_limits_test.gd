@@ -18,7 +18,8 @@ func _run() -> void:
 	hinge.set_param(HingeJoint3D.PARAM_LIMIT_LOWER, -0.4)
 	hinge.set_param(HingeJoint3D.PARAM_LIMIT_UPPER, 0.4)
 	hinge.set_flag(HingeJoint3D.FLAG_USE_LIMIT, true)
-	hinge.set_param(HingeJoint3D.PARAM_MOTOR_MAX_IMPULSE, 100.0)
+	# Keep this fixture useful with both the old torque mapping and corrected impulse units.
+	hinge.set_param(HingeJoint3D.PARAM_MOTOR_MAX_IMPULSE, 100.0 / 60.0)
 	hinge.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, 2.0)
 	hinge.set_flag(HingeJoint3D.FLAG_ENABLE_MOTOR, true)
 	for frame in 90:
