@@ -24,6 +24,7 @@ func _run() -> void:
 	for frame in 90:
 		await physics_frame
 	_check(rotor.rotation.z > 0.3 and rotor.rotation.z < 0.5, "hinge motor reaches and respects its upper limit")
+	rotor.sleeping = true
 	hinge.set_param(HingeJoint3D.PARAM_MOTOR_TARGET_VELOCITY, -2.0)
 	for frame in 90:
 		await physics_frame
@@ -60,13 +61,36 @@ func _run() -> void:
 	for frame in 60:
 		await physics_frame
 	_check(carriage.position.x < -0.9 and carriage.position.x > -1.1, "editing a live slider limit changes the constraint")
+	carriage.sleeping = true
+	slider.set_param(SliderJoint3D.PARAM_LINEAR_LIMIT_LOWER, -0.2)
+	for frame in 60:
+		await physics_frame
+	_check(carriage.position.x > -0.25, "editing a slider limit wakes a sleeping constrained body")
 	carriage.free()
 	await physics_frame
 	slider.free()
 	anchor.free()
+	_invalidated_handle()
 	if failures == 0:
 		print("RESULT: PASS - live hinge motors/limits, slider limits and connected-body teardown")
 	quit(1 if failures > 0 else 0)
+
+
+func _invalidated_handle() -> void:
+	var space: RID = root.world_3d.space
+	var body_a: RID = PhysicsServer3D.body_create()
+	var body_b: RID = PhysicsServer3D.body_create()
+	PhysicsServer3D.body_set_space(body_a, space)
+	PhysicsServer3D.body_set_space(body_b, space)
+	var joint: RID = PhysicsServer3D.joint_create()
+	PhysicsServer3D.joint_make_hinge(joint, body_a, Transform3D.IDENTITY, body_b, Transform3D.IDENTITY)
+	PhysicsServer3D.body_set_space(body_b, RID())
+	PhysicsServer3D.hinge_joint_set_flag(joint, PhysicsServer3D.HINGE_JOINT_FLAG_ENABLE_MOTOR, true)
+	PhysicsServer3D.free_rid(body_b)
+	PhysicsServer3D.hinge_joint_set_param(joint, PhysicsServer3D.HINGE_JOINT_MOTOR_TARGET_VELOCITY, 2.0)
+	_check(PhysicsServer3D.hinge_joint_get_param(joint, PhysicsServer3D.HINGE_JOINT_MOTOR_TARGET_VELOCITY) == 2.0, "setters safely retain cached state after the native joint is destroyed")
+	PhysicsServer3D.free_rid(joint)
+	PhysicsServer3D.free_rid(body_a)
 
 
 func _body(position: Vector3) -> RigidBody3D:
