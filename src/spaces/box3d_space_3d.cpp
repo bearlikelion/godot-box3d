@@ -11,6 +11,8 @@
 
 #include <box3d/box3d.h>
 
+#include <limits>
+
 namespace {
 constexpr int SUB_STEP_COUNT = 4;
 } // namespace
@@ -74,6 +76,33 @@ void Box3DSpace3D::set_default_area(Box3DAreaImpl3D* p_area) {
 	default_area = p_area;
 }
 
+void Box3DSpace3D::set_hinge_motor_impulse(b3JointId p_joint, float p_impulse) {
+	hinge_motor_limits[b3StoreJointId(p_joint)].impulse = p_impulse;
+}
+
+void Box3DSpace3D::_update_hinge_motor_limits(float p_step) {
+	if (p_step <= 0.0f || !Math::is_finite(p_step)) {
+		return;
+	}
+	const double inverse_step = 1.0 / (double)p_step;
+	for (auto it = hinge_motor_limits.begin(); it != hinge_motor_limits.end();) {
+		const auto current = it;
+		++it;
+		const b3JointId joint = b3LoadJointId(current->key);
+		if (!b3Joint_IsValid(joint)) {
+			hinge_motor_limits.remove(current);
+			continue;
+		}
+		HingeMotorLimit& limit = current->value;
+		// The substeps share one Godot-tick impulse budget, using the actual scaled step.
+		const float torque = (float)MIN((double)limit.impulse * inverse_step, (double)std::numeric_limits<float>::max());
+		if (torque != limit.applied_torque) {
+			b3RevoluteJoint_SetMaxMotorTorque(joint, torque);
+			limit.applied_torque = torque;
+		}
+	}
+}
+
 void Box3DSpace3D::step(float p_step) {
 	last_step = p_step;
 
@@ -87,6 +116,7 @@ void Box3DSpace3D::step(float p_step) {
 		body->pre_step();
 	}
 
+	_update_hinge_motor_limits(p_step);
 	b3World_Step(world_id, p_step, SUB_STEP_COUNT);
 
 	_pull_body_events();
