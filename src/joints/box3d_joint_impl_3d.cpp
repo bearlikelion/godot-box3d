@@ -15,10 +15,34 @@ Box3DJointImpl3D::Box3DJointImpl3D(
 		local_frame_b(p_local_frame_b),
 		body_a(p_body_a),
 		body_b(p_body_b) {
+	if (body_a != nullptr) {
+		body_a->add_joint(this);
+	}
+	if (body_b != nullptr) {
+		body_b->add_joint(this);
+	}
 }
 
 Box3DJointImpl3D::~Box3DJointImpl3D() {
 	_destroy_joint_id();
+	if (body_a != nullptr) {
+		body_a->remove_joint(this);
+	}
+	if (body_b != nullptr) {
+		body_b->remove_joint(this);
+	}
+}
+
+void Box3DJointImpl3D::remove_body(Box3DBodyImpl3D* p_body) {
+	_destroy_joint_id();
+	p_body->remove_joint(this);
+	if (body_a == p_body) {
+		body_a = nullptr;
+	}
+	if (body_b == p_body) {
+		body_b = nullptr;
+	}
+	endpoints_valid = false;
 }
 
 void Box3DJointImpl3D::set_collision_disabled(bool p_disabled) {
@@ -52,13 +76,14 @@ void Box3DJointImpl3D::set_local_frame_b(const Transform3D& p_frame) {
 void Box3DJointImpl3D::rebuild() {
 	_destroy_joint_id();
 
-	if (body_a == nullptr || body_b == nullptr) {
+	if (!endpoints_valid || body_a == nullptr) {
 		return;
 	}
-	if (!body_a->has_body_id() || !body_b->has_body_id()) {
+	if (!body_a->has_body_id() || body_a->get_space() == nullptr) {
 		return;
 	}
-	if (body_a->get_space() == nullptr) {
+	// A deferred two-body joint must never pass IDs from different native worlds.
+	if (body_b != nullptr && (!body_b->has_body_id() || body_b->get_space() != body_a->get_space())) {
 		return;
 	}
 
@@ -66,7 +91,8 @@ void Box3DJointImpl3D::rebuild() {
 	const b3Transform frame_b = godot_to_b3_transform(local_frame_b);
 	const b3WorldId world_id = body_a->get_space()->get_world_id();
 
-	joint_id = _create_joint_id(world_id, body_a->get_body_id(), body_b->get_body_id(), frame_a, frame_b);
+	const b3BodyId endpoint_b = body_b != nullptr ? body_b->get_body_id() : body_a->get_space()->get_world_anchor_body();
+	joint_id = _create_joint_id(world_id, body_a->get_body_id(), endpoint_b, frame_a, frame_b);
 
 	if (has_joint_id()) {
 		b3Joint_SetCollideConnected(joint_id, !collision_disabled);

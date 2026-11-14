@@ -960,10 +960,8 @@ void Box3DPhysicsServer3D::_joint_make_pin(const RID& p_joint, const RID& p_body
 
 	Box3DBodyImpl3D* body_a = body_owner.get_or_null(p_body_a);
 	Box3DBodyImpl3D* body_b = body_owner.get_or_null(p_body_b);
-	// PinJoint3D reconfigures itself as each NodePath property is assigned. During
-	// that normal setup sequence one body RID is temporarily empty, so retain the
-	// valid placeholder until both endpoints are available.
-	if (body_a == nullptr || body_b == nullptr) {
+	// An empty B RID is the world; an invalid nonempty RID is not an endpoint.
+	if (body_a == nullptr || (p_body_b.is_valid() && body_b == nullptr) || body_a == body_b) {
 		return;
 	}
 
@@ -1026,12 +1024,14 @@ Vector3 Box3DPhysicsServer3D::_pin_joint_get_local_b(const RID& p_joint) const {
 }
 
 void Box3DPhysicsServer3D::_joint_make_hinge(const RID& p_joint, const RID& p_body_a, const Transform3D& p_hinge_a, const RID& p_body_b, const Transform3D& p_hinge_b) {
+	ERR_FAIL_COND(!joint_owner.owns(p_joint));
 	_joint_clear(p_joint);
 
 	Box3DBodyImpl3D* body_a = body_owner.get_or_null(p_body_a);
 	Box3DBodyImpl3D* body_b = body_owner.get_or_null(p_body_b);
-	ERR_FAIL_NULL(body_a);
-	ERR_FAIL_NULL(body_b);
+	if (body_a == nullptr || (p_body_b.is_valid() && body_b == nullptr) || body_a == body_b) {
+		return;
+	}
 
 	// Box3D's revolute joint rotates about the LOCAL Z axis of the joint frames; Godot's
 	// HingeJoint3D convention uses local Z as the hinge axis too (the incoming p_hinge_a/b
@@ -1044,12 +1044,14 @@ void Box3DPhysicsServer3D::_joint_make_hinge(const RID& p_joint, const RID& p_bo
 }
 
 void Box3DPhysicsServer3D::_joint_make_hinge_simple(const RID& p_joint, const RID& p_body_a, const Vector3& p_pivot_a, const Vector3& p_axis_a, const RID& p_body_b, const Vector3& p_pivot_b, const Vector3& p_axis_b) {
+	ERR_FAIL_COND(!joint_owner.owns(p_joint));
 	_joint_clear(p_joint);
 
 	Box3DBodyImpl3D* body_a = body_owner.get_or_null(p_body_a);
 	Box3DBodyImpl3D* body_b = body_owner.get_or_null(p_body_b);
-	ERR_FAIL_NULL(body_a);
-	ERR_FAIL_NULL(body_b);
+	if (body_a == nullptr || (p_body_b.is_valid() && body_b == nullptr) || body_a == body_b) {
+		return;
+	}
 
 	// Build a joint-frame basis that maps local Z to the given hinge axis (shortest-arc
 	// rotation from +Z), since Box3D's revolute joint always rotates about local Z.
@@ -1091,12 +1093,14 @@ bool Box3DPhysicsServer3D::_hinge_joint_get_flag(const RID& p_joint, PhysicsServ
 }
 
 void Box3DPhysicsServer3D::_joint_make_slider(const RID& p_joint, const RID& p_body_a, const Transform3D& p_local_ref_a, const RID& p_body_b, const Transform3D& p_local_ref_b) {
+	ERR_FAIL_COND(!joint_owner.owns(p_joint));
 	_joint_clear(p_joint);
 
 	Box3DBodyImpl3D* body_a = body_owner.get_or_null(p_body_a);
 	Box3DBodyImpl3D* body_b = body_owner.get_or_null(p_body_b);
-	ERR_FAIL_NULL(body_a);
-	ERR_FAIL_NULL(body_b);
+	if (body_a == nullptr || (p_body_b.is_valid() && body_b == nullptr) || body_a == body_b) {
+		return;
+	}
 
 	// Box3D's prismatic joint slides along the LOCAL X axis of local frame A, matching
 	// Godot's SliderJoint3D convention (which also slides along local X), so no axis

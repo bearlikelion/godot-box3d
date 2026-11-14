@@ -40,7 +40,7 @@ Worker threads, length units, and checking that the backend loaded are covered i
 - Ray casts, shape casts, and the other direct space state queries
 - `CharacterBody3D` and `move_and_slide()`
 - Contact monitoring with real contact points, normals, and impulses
-- Pin, hinge, and slider joints
+- Pin, hinge, and slider joints, including one-body world anchors
 - A multithreaded solver with identical results at any worker count
 
 Not done yet: ConeTwist and `Generic6DOFJoint3D`, `SoftBody3D`, solver profiling, and more platforms.

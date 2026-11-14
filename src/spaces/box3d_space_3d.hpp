@@ -30,6 +30,9 @@ public:
 
 	b3WorldId get_world_id() const { return world_id; }
 
+	// Created lazily, shared by world joints, and destroyed with the native world.
+	b3BodyId get_world_anchor_body();
+
 	RID get_rid() const { return rid; }
 
 	void set_rid(const RID& p_rid) { rid = p_rid; }
@@ -125,6 +128,7 @@ private:
 
 	RID rid;
 	b3WorldId world_id = b3_nullWorldId;
+	b3BodyId world_anchor_body = b3_nullBodyId;
 	Box3DPhysicsDirectSpaceState3D* direct_state = nullptr;
 	Box3DAreaImpl3D* default_area = nullptr;
 

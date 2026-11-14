@@ -51,3 +51,22 @@ Materials tuned against Godot's defaults will not feel the same, so a port usual
 Godot's joint API exposes parameters Box3D has no equivalent for, including `HingeJoint3D`'s `LIMIT_RELAXATION` and `LIMIT_SOFTNESS`, `PinJoint3D`'s `IMPULSE_CLAMP`, and most of `SliderJoint3D`'s per-axis tuning (Box3D's prismatic joint is a pure 1-DOF slider).
 
 Setting one logs a warning and is ignored, rather than silently mapping onto something that behaves differently.
+
+## World-anchored joints
+
+Pin, hinge and slider joints can attach a body to the world by leaving either
+`Joint3D` body NodePath empty. Direct server calls require body A and an empty
+body B RID; frame B is in world coordinates. Each space shares one lazily created
+shapeless static endpoint. Construction before space attachment is deferred,
+and two-body pairs remain deferred while their bodies occupy different spaces.
+
+Joints rebuild when the endpoints share a space. Freeing a connected body
+invalidates the joint until explicitly rebound; it does not silently turn the
+deleted endpoint into a world anchor. Space destruction detaches surviving
+body/area RIDs before destroying the native world.
+
+The existing Box3D hinge convention remains B relative to A about local Z.
+For a world-fixed B endpoint, positive motor speed rotates body A negatively
+about that axis, exactly as with an explicit static B body. This change does not
+claim GodotPhysics motor-direction or solver-trajectory parity, change impulse
+units, or add support for previously ignored joint tuning parameters.

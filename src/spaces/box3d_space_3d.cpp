@@ -26,6 +26,13 @@ Box3DSpace3D::Box3DSpace3D() {
 }
 
 Box3DSpace3D::~Box3DSpace3D() {
+	// RIDs may outlive their space. Detach fixtures/joints before destroying its world.
+	for (Box3DBodyImpl3D* body : bodies) {
+		body->set_space(nullptr);
+	}
+	for (Box3DAreaImpl3D* area : areas) {
+		area->set_space(nullptr);
+	}
 	if (direct_state != nullptr) {
 		memdelete(direct_state);
 		direct_state = nullptr;
@@ -34,6 +41,15 @@ Box3DSpace3D::~Box3DSpace3D() {
 		b3DestroyWorld(world_id);
 		world_id = b3_nullWorldId;
 	}
+}
+
+b3BodyId Box3DSpace3D::get_world_anchor_body() {
+	if (B3_IS_NULL(world_anchor_body)) {
+		b3BodyDef def = b3DefaultBodyDef();
+		def.type = b3_staticBody;
+		world_anchor_body = b3CreateBody(world_id, &def);
+	}
+	return world_anchor_body;
 }
 
 double Box3DSpace3D::get_param(PhysicsServer3D::SpaceParameter p_param) const {
