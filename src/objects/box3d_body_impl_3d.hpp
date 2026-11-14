@@ -4,6 +4,7 @@
 
 #include <godot_cpp/classes/physics_server3d.hpp>
 #include <godot_cpp/templates/hash_map.hpp>
+#include <godot_cpp/templates/hash_set.hpp>
 #include <godot_cpp/templates/local_vector.hpp>
 #include <godot_cpp/variant/callable.hpp>
 
@@ -12,6 +13,7 @@
 using namespace godot;
 
 class Box3DFilterJointImpl3D;
+class Box3DJointImpl3D;
 class Box3DPhysicsDirectBodyState3D;
 
 // One Godot contact point, flattened from a Box3D manifold point.
@@ -38,6 +40,12 @@ public:
 	using BodyDampMode = PhysicsServer3D::BodyDampMode;
 
 	~Box3DBodyImpl3D() override;
+
+	void set_space(Box3DSpace3D* p_space) override;
+
+	void add_joint(Box3DJointImpl3D* p_joint) { joints.insert(p_joint); }
+
+	void remove_joint(Box3DJointImpl3D* p_joint) { joints.erase(p_joint); }
 
 	// Lazily creates (on first call) the PhysicsDirectBodyState3DExtension wrapper handed
 	// to scripts and to Godot core's move_and_slide(); reused for the object's lifetime.
@@ -264,6 +272,7 @@ private:
 
 	// Both bodies in a pair hold the same joint pointer; the server owns and frees it once.
 	HashMap<RID, Box3DFilterJointImpl3D*> collision_exceptions;
+	HashSet<Box3DJointImpl3D*> joints;
 
 	Box3DPhysicsDirectBodyState3D* direct_state = nullptr;
 };

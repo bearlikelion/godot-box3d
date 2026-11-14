@@ -1,4 +1,5 @@
 #include "box3d_body_impl_3d.hpp"
+#include "../joints/box3d_joint_impl_3d.hpp"
 #include "../spaces/box3d_space_3d.hpp"
 
 #include "../misc/type_conversions.hpp"
@@ -7,9 +8,22 @@
 #include <box3d/box3d.h>
 
 Box3DBodyImpl3D::~Box3DBodyImpl3D() {
+	while (!joints.is_empty()) {
+		(*joints.begin())->remove_body(this);
+	}
 	if (direct_state != nullptr) {
 		memdelete(direct_state);
 		direct_state = nullptr;
+	}
+}
+
+void Box3DBodyImpl3D::set_space(Box3DSpace3D* p_space) {
+	if (get_space() == p_space) {
+		return;
+	}
+	Box3DShapedObjectImpl3D::set_space(p_space);
+	for (Box3DJointImpl3D* joint : joints) {
+		joint->rebuild();
 	}
 }
 

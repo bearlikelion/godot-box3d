@@ -13,8 +13,9 @@ class Box3DBodyImpl3D;
 // Base for pin/hinge/slider joint wrappers. Box3D joints are created eagerly against two
 // live b3BodyIds (unlike Godot's PhysicsServer3D API, which allows _joint_make_* to be
 // called with bodies that may not yet be attached to a space) so, similar to
-// Box3DShapedObjectImpl3D, the b3JointId is only created once both bodies have a valid
-// b3BodyId; until then all construction state is cached here.
+// Box3DShapedObjectImpl3D, the b3JointId is only created once the endpoints have
+// valid IDs in the same space; until then all construction state is cached here. An empty body B uses
+// the space's shared, shapeless static body; its frame is in world coordinates.
 class Box3DJointImpl3D {
 public:
 	virtual ~Box3DJointImpl3D();
@@ -50,6 +51,9 @@ public:
 	// changed, to (re)build the live b3JointId if both bodies now have a b3BodyId.
 	void rebuild();
 
+	// Body destruction invalidates the endpoint, not a request to attach to the world.
+	void remove_body(Box3DBodyImpl3D* p_body);
+
 protected:
 	Box3DJointImpl3D(Box3DBodyImpl3D* p_body_a, Box3DBodyImpl3D* p_body_b, const Transform3D& p_local_frame_a, const Transform3D& p_local_frame_b);
 
@@ -66,4 +70,5 @@ private:
 	Box3DBodyImpl3D* body_b = nullptr;
 	b3JointId joint_id = b3_nullJointId;
 	bool collision_disabled = false;
+	bool endpoints_valid = true;
 };
