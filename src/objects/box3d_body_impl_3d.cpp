@@ -95,8 +95,7 @@ void Box3DBodyImpl3D::set_transform(const Transform3D& p_transform) {
 	kinematic_target_pending = false;
 	target_driven = false;
 
-	// Box3D changes the pose without waking the body. Compare the actual native
-	// poses so an unchanged write (including rotation round-off) leaves it asleep.
+	// Box3D leaves a transformed body asleep; compare native poses to ignore rotation round-off.
 	const bool sleeping_rigid = (mode == PhysicsServer3D::BODY_MODE_RIGID ||
 			mode == PhysicsServer3D::BODY_MODE_RIGID_LINEAR) && is_sleeping();
 	const Transform3D previous_pose = sleeping_rigid ? get_transform() : Transform3D();
