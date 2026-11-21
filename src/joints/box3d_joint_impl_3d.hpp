@@ -31,7 +31,7 @@ public:
 
 	b3JointId get_joint_id() const { return joint_id; }
 
-	bool has_joint_id() const { return B3_IS_NON_NULL(joint_id); }
+	bool has_joint_id() const;
 
 	bool is_collision_disabled() const { return collision_disabled; }
 

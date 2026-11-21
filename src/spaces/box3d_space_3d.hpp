@@ -60,6 +60,8 @@ public:
 
 	void unregister_area(Box3DAreaImpl3D* p_area) { areas.erase(p_area); }
 
+	void set_hinge_motor_impulse(b3JointId p_joint, float p_impulse);
+
 	// Applies area gravity/damp overrides + constant-force accumulators, steps the world,
 	// then immediately drains every Box3D event array into the pending queues below.
 	void step(float p_step);
@@ -82,6 +84,13 @@ public:
 	AreaOverrides compute_area_overrides(Box3DBodyImpl3D* p_body) const;
 
 private:
+	struct HingeMotorLimit {
+		float impulse = 0.0f;
+		float applied_torque = -1.0f;
+	};
+
+	void _update_hinge_motor_limits(float p_step);
+
 	struct PendingAreaEvent {
 		Callable callback;
 		PhysicsServer3D::AreaBodyStatus status = PhysicsServer3D::AREA_BODY_ADDED;
@@ -130,6 +139,7 @@ private:
 
 	HashSet<Box3DBodyImpl3D*> bodies;
 	HashSet<Box3DAreaImpl3D*> areas;
+	HashMap<uint64_t, HingeMotorLimit> hinge_motor_limits;
 
 	HashMap<SensorPairKey, SensorPair, SensorPairKey> sensor_pairs;
 	LocalVector<PendingAreaEvent> pending_area_events;

@@ -46,6 +46,21 @@ Box3D uses `sqrt(a * b)` for friction and `max(a, b)` for restitution. Godot's b
 
 Materials tuned against Godot's defaults will not feel the same, so a port usually needs its friction values revisited.
 
+## Hinge motor impulse budget
+
+`HingeJoint3D.motor/max_impulse` is an angular impulse cap per full Godot physics
+tick. The adapter uses the actual step to convert it to Box3D torque:
+`torque = max_impulse / step_seconds`. The native substeps share this tick budget.
+Tick-rate/time-scale changes and live cap edits do not require re-creating the joint;
+the getter retains the requested impulse. Unchanged native torque limits are not
+rewritten each tick, and the conversion does not wake sleeping bodies.
+
+This changes the previous direct torque mapping: at 60 Hz / time scale 1, a value
+of 1 permits 1 angular impulse per tick (60 Nm), not 1 Nm. Retune scenes that relied
+on the older strength. For constant torque use an impulse of
+`desired_torque * step_seconds`. This does not reproduce GodotPhysics3D's solver
+iteration quirks or promise identical cross-engine trajectories.
+
 ## Ignored joint parameters
 
 Godot's joint API exposes parameters Box3D has no equivalent for, including `HingeJoint3D`'s `LIMIT_RELAXATION` and `LIMIT_SOFTNESS`, `PinJoint3D`'s `IMPULSE_CLAMP`, and most of `SliderJoint3D`'s per-axis tuning (Box3D's prismatic joint is a pure 1-DOF slider).
