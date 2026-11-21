@@ -47,7 +47,7 @@ target_compile_features(godot-box3d PRIVATE cxx_std_17)
 
 if(EMSCRIPTEN)
 	target_compile_definitions(godot-box3d PRIVATE WEB_ENABLED UNIX_ENABLED
-		"$<$<CONFIG:Debug>:DEBUG_ENABLED;DEBUG_METHODS_ENABLED>"
+		"$<$<CONFIG:Debug>:DEBUG_ENABLED;DEBUG_METHODS_ENABLED;HOT_RELOAD_ENABLED>"
 	)
 	# Match the official templates' Wasm longjmp ABI.
 	target_compile_options(godot-box3d PRIVATE -sSUPPORT_LONGJMP=wasm)
