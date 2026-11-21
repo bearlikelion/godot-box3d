@@ -3,6 +3,7 @@
 #include "../misc/type_conversions.hpp"
 
 #include <box3d/collision.h>
+#include <godot_cpp/templates/local_vector.hpp>
 
 Box3DConvexPolygonShapeImpl3D::~Box3DConvexPolygonShapeImpl3D() {
 	if (hull != nullptr) {

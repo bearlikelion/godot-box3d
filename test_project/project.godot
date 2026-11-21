@@ -92,4 +92,5 @@ demo_zoom_out={
 
 [rendering]
 
+renderer/rendering_method.web="gl_compatibility"
 environment/defaults/default_clear_color=Color(0.15686275, 0.15686275, 0.15686275, 1)

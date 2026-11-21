@@ -30,6 +30,7 @@ This is my first time doing physics programming, and I am building the bridge be
 
 Requires Godot 4.3 or newer.
 Linux and Windows are tested; macOS builds are Apple Silicon only and untested.
+Single-threaded Web exports use the official Godot 4.7 templates; see [Building for Web](docs/building.md#building-for-web).
 Worker threads, length units, and checking that the backend loaded are covered in [Installation](https://bearlikelion.github.io/godot-box3d/installation/).
 
 ## What works

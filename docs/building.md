@@ -42,6 +42,23 @@ This produces `bin/godot-box3d.dll`, statically linked against the MinGW runtime
 
 The toolchain file also generates a capitalised `Windows.h` symlink, because `box3d/src/timer.c` includes it capitalised while MinGW ships lowercase `windows.h` and Linux filesystems are case-sensitive.
 
+## Building for Web
+
+Use Emscripten 4.0.20 with the official Godot 4.7 export templates. After activating the Emscripten SDK, build the extension with the existing CMake project:
+
+```sh
+emcmake cmake -B build-web-release -DCMAKE_BUILD_TYPE=Release
+CMAKE_BUILD_PARALLEL_LEVEL=4 cmake --build build-web-release --parallel 4
+emcmake cmake -B build-web-debug -DCMAKE_BUILD_TYPE=Debug
+CMAKE_BUILD_PARALLEL_LEVEL=4 cmake --build build-web-debug --parallel 4
+```
+
+The generated `bin/libgodot-box3d.web.*.wasm32.nothreads.wasm` files are copied into the existing test addon. For another project, merge the release addon or copy these files into its `addons/godot-box3d/bin/` alongside the updated `.gdextension` file and the native editor library.
+
+Install Godot 4.7's official export templates, select **Box3D Physics**, and create a Web export preset. Enable **Extensions Support**, disable **Thread Support**, and leave both custom template paths empty. Use the Compatibility renderer. The included **Web** preset exports the existing demo project with these settings.
+
+This build runs Box3D with one worker. Threaded extension builds and static embedding are outside this build profile. Serve the export over HTTP as described in [Godot's Web export documentation](https://docs.godotengine.org/en/4.7/tutorials/export/exporting_for_web.html).
+
 ## Running the tests
 
 ```sh

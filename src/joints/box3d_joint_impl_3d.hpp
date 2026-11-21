@@ -5,6 +5,7 @@
 #include <godot_cpp/variant/transform3d.hpp>
 
 #include <box3d/id.h>
+#include <box3d/math_functions.h>
 
 using namespace godot;
 
