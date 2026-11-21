@@ -94,7 +94,18 @@ void Box3DBodyImpl3D::set_transform(const Transform3D& p_transform) {
 	// writes would hide even explicitly synchronized movement from other queries.
 	kinematic_target_pending = false;
 	target_driven = false;
+
+	// Box3D leaves a transformed body asleep; compare native poses to ignore rotation round-off.
+	const bool sleeping_rigid = (mode == PhysicsServer3D::BODY_MODE_RIGID ||
+			mode == PhysicsServer3D::BODY_MODE_RIGID_LINEAR) && is_sleeping();
+	const Transform3D previous_pose = sleeping_rigid ? get_transform() : Transform3D();
 	Box3DShapedObjectImpl3D::set_transform(p_transform);
+	if (sleeping_rigid) {
+		const Transform3D pose = get_transform();
+		if (pose.origin != previous_pose.origin || !pose.basis.is_equal_approx(previous_pose.basis)) {
+			set_sleeping(false);
+		}
+	}
 	kinematic_transform_initialized = mode == PhysicsServer3D::BODY_MODE_KINEMATIC;
 }
 
