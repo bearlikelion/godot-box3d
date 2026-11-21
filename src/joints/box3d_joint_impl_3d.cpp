@@ -21,6 +21,10 @@ Box3DJointImpl3D::~Box3DJointImpl3D() {
 	_destroy_joint_id();
 }
 
+bool Box3DJointImpl3D::has_joint_id() const {
+	return B3_IS_NON_NULL(joint_id) && b3Joint_IsValid(joint_id);
+}
+
 void Box3DJointImpl3D::set_collision_disabled(bool p_disabled) {
 	collision_disabled = p_disabled;
 	if (has_joint_id()) {
@@ -75,10 +79,7 @@ void Box3DJointImpl3D::rebuild() {
 
 void Box3DJointImpl3D::_destroy_joint_id() {
 	if (has_joint_id()) {
-		// b3DestroyBody already destroyed this joint if either body went away first.
-		if (b3Joint_IsValid(joint_id)) {
-			b3DestroyJoint(joint_id, true);
-		}
-		joint_id = b3_nullJointId;
+		b3DestroyJoint(joint_id, true);
 	}
+	joint_id = b3_nullJointId;
 }

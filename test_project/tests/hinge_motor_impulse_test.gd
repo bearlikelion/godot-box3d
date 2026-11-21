@@ -60,6 +60,7 @@ func _run() -> void:
 	anchor.free()
 	await physics_frame
 	await _dynamic_pair()
+	_invalidated_handle()
 	Engine.physics_ticks_per_second = original_rate
 	Engine.time_scale = original_scale
 	if failures == 0:
@@ -98,6 +99,25 @@ func _dynamic_pair() -> void:
 	for body in bodies:
 		body.free()
 	await physics_frame
+
+
+func _invalidated_handle() -> void:
+	var space: RID = root.world_3d.space
+	var body_a: RID = PhysicsServer3D.body_create()
+	var body_b: RID = PhysicsServer3D.body_create()
+	PhysicsServer3D.body_set_space(body_a, space)
+	PhysicsServer3D.body_set_space(body_b, space)
+	var joint: RID = PhysicsServer3D.joint_create()
+	PhysicsServer3D.joint_make_hinge(joint, body_a, Transform3D.IDENTITY, body_b, Transform3D.IDENTITY)
+	PhysicsServer3D.body_set_space(body_a, RID())
+	PhysicsServer3D.hinge_joint_set_param(joint, PhysicsServer3D.HINGE_JOINT_MOTOR_MAX_IMPULSE, 0.02)
+	PhysicsServer3D.free_rid(body_a)
+	PhysicsServer3D.hinge_joint_set_param(joint, PhysicsServer3D.HINGE_JOINT_MOTOR_TARGET_VELOCITY, 2.0)
+	var impulse: float = PhysicsServer3D.hinge_joint_get_param(joint, PhysicsServer3D.HINGE_JOINT_MOTOR_MAX_IMPULSE)
+	var speed: float = PhysicsServer3D.hinge_joint_get_param(joint, PhysicsServer3D.HINGE_JOINT_MOTOR_TARGET_VELOCITY)
+	_check(is_equal_approx(impulse, 0.02) and speed == 2.0, "motor edits stay safe and cached after the native joint is destroyed")
+	PhysicsServer3D.free_rid(joint)
+	PhysicsServer3D.free_rid(body_b)
 
 
 func _sample(state: PhysicsDirectBodyState3D) -> void:
