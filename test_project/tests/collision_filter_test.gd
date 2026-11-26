@@ -36,6 +36,18 @@ func _run() -> void:
 	var hit: Dictionary = root.world_3d.direct_space_state.intersect_ray(query)
 	_check(not hit.is_empty(), "direct queries match a target layer regardless of the target mask")
 
+	var new_layer: int = 1 << 19
+	query_target.collision_layer = new_layer
+	floor_accepts.collision_mask = 0
+	await physics_frame
+	_check(root.world_3d.direct_space_state.intersect_ray(query).is_empty(), "live layer change stops matching the old query mask")
+	query.collision_mask = new_layer
+	hit = root.world_3d.direct_space_state.intersect_ray(query)
+	_check(hit.get("collider") == query_target, "live layer change matches the new query mask")
+	for frame in 120:
+		await physics_frame
+	_check(accepted_by_floor.global_position.y < -5.0, "live mask change removes an existing contact pair")
+
 	accepts_floor.queue_free()
 	floor_accepts.queue_free()
 	query_target.queue_free()
